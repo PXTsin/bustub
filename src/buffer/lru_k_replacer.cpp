@@ -22,6 +22,7 @@ namespace bustub {
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
+  //std::lock_guard<std::mutex> lockgd(latch_);
   auto func = [&frame_id, this](LRUKNode *tail) {
     auto temp = tail;
     /*找到第一个可以放逐的frame*/
@@ -31,7 +32,6 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     if (temp == nullptr) {
       return false;
     }
-    latch_.lock();
     /*更新链表头或尾*/
     if (temp == history_head_) {
       history_head_ = temp->next_;
@@ -54,27 +54,29 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
       temp->next_->front_ = temp->front_;
     }
     --curr_size_;
-    latch_.unlock();
     temp->k_ = 0;
     /////////////////
     *frame_id = temp->fid_;
-    // Remove(temp->fid_);
+    Remove(temp->fid_);
     return true;
   };
-  if (cache_head_ == nullptr) {  // cache_store_.empty()
+  if (history_head_ != nullptr) {  // cache_store_.empty()
     return func(history_tail_);
   }
   return func(cache_tail_);
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
+    //std::lock_guard<std::mutex> lockgd(latch_);
   BUSTUB_ASSERT(static_cast<size_t>(frame_id) <= replacer_size_, "frame id is invalid");
   /*在缓存中*/
   if (cache_store_[frame_id] != nullptr) {
     auto frame = cache_store_[frame_id];
-    latch_.lock();
     if (cache_tail_ == frame) {
       cache_tail_ = frame->front_;
+    }
+    if (cache_head_ == frame) {
+      cache_head_ = frame->next_;
     }
     if (frame->front_ != nullptr) {
       frame->front_->next_ = frame->next_;
@@ -89,15 +91,16 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     cache_head_ = frame;
     cache_head_->front_ = nullptr;
     frame->k_++;
-    latch_.unlock();
     return;
   }
   /*在历史存储中*/
   if (history_store_[frame_id] != nullptr) {
     auto frame = history_store_[frame_id];
-    latch_.lock();
     if (history_tail_ == frame) {
       history_tail_ = frame->front_;
+    }
+    if (history_head_ == frame) {
+      history_head_ = frame->next_;  // history_head_=frame->next_;//
     }
     if (frame->front_ != nullptr) {
       frame->front_->next_ = frame->next_;
@@ -111,13 +114,11 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
       history_store_.erase(frame_id);
       frame->next_ = cache_head_;
       frame->front_ = nullptr;
-      // if (cache_head_ != nullptr) {
-      //   cache_head_->front_ = frame;
-      // }else{
-      //   cache_tail_=frame;
-      // }
-      cache_head_->front_ = frame;
-
+      if (cache_head_ != nullptr) {
+        cache_head_->front_ = frame;
+      } else {
+        cache_tail_ = frame;
+      }
       cache_head_ = frame;
       return;
     }
@@ -126,44 +127,38 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     frame->next_ = history_head_;
     history_head_ = frame;
     history_head_->front_ = nullptr;
-    latch_.unlock();
     return;
   }
   /*没有记录就创建*/
   auto node = new LRUKNode();
   node->fid_ = frame_id;
   node->k_ = 1;
-  latch_.lock();
   history_store_[frame_id] = node;
   /**/
   if (history_head_ == nullptr) {
     history_head_ = node;
     history_tail_ = node;
-    latch_.unlock();
     return;
   }
   history_head_->front_ = node;
   node->next_ = history_head_;
   history_head_ = node;
-  latch_.unlock();
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  latch_.lock();
+  //std::lock_guard<std::mutex> lockgd(latch_);
   auto temp = (cache_store_[frame_id] != nullptr) ? cache_store_[frame_id] : history_store_[frame_id];
   if (temp == nullptr) {
-    latch_.unlock();
     return;
   }
   temp->fid_ = frame_id;
   curr_size_ = set_evictable ? curr_size_ + static_cast<size_t>(set_evictable ^ temp->is_evictable_)
                              : curr_size_ - static_cast<size_t>(set_evictable ^ temp->is_evictable_);
   temp->is_evictable_ = set_evictable;
-  latch_.unlock();
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {
-  latch_.lock();
+  //std::lock_guard<std::mutex> lockgd(latch_);
   if (cache_store_[frame_id] != nullptr) {
     auto temp = cache_store_[frame_id];
     cache_store_.erase(frame_id);
@@ -173,7 +168,6 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
     history_store_.erase(frame_id);
     delete temp;
   }
-  latch_.unlock();
 }
 
 auto LRUKReplacer::Size() -> size_t { return curr_size_; }

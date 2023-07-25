@@ -22,7 +22,7 @@ namespace bustub {
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
-  //std::lock_guard<std::mutex> lockgd(latch_);
+  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
   auto func = [&frame_id, this](LRUKNode *tail) {
     auto temp = tail;
     /*找到第一个可以放逐的frame*/
@@ -67,8 +67,8 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
-    //std::lock_guard<std::mutex> lockgd(latch_);
   BUSTUB_ASSERT(static_cast<size_t>(frame_id) <= replacer_size_, "frame id is invalid");
+  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
   /*在缓存中*/
   if (cache_store_[frame_id] != nullptr) {
     auto frame = cache_store_[frame_id];
@@ -146,7 +146,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  //std::lock_guard<std::mutex> lockgd(latch_);
+  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
   auto temp = (cache_store_[frame_id] != nullptr) ? cache_store_[frame_id] : history_store_[frame_id];
   if (temp == nullptr) {
     return;
@@ -158,7 +158,7 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {
-  //std::lock_guard<std::mutex> lockgd(latch_);
+  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
   if (cache_store_[frame_id] != nullptr) {
     auto temp = cache_store_[frame_id];
     cache_store_.erase(frame_id);

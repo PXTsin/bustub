@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
+#include <utility>
 #include "common/config.h"
 #include "common/exception.h"
 
@@ -60,8 +61,12 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     Remove(temp->fid_);
     return true;
   };
-  if (history_head_ != nullptr) {  // cache_store_.empty()
-    return func(history_tail_);
+  // if (history_head_ != nullptr) {  // cache_store_.empty()
+  //   return func(history_tail_);
+  // }
+  // return func(cache_tail_);
+  if (func(history_tail_)) {  // cache_store_.empty()
+    return true;
   }
   return func(cache_tail_);
 }

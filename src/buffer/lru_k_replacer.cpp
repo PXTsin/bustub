@@ -21,7 +21,14 @@
 namespace bustub {
 
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
-
+LRUKReplacer::~LRUKReplacer() {
+  for (auto &e : history_store_) {
+    delete e.second;
+  }
+  for (auto &e : cache_store_) {
+    delete e.second;
+  }
+};
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
   auto func = [&frame_id, this](LRUKNode *tail) {
@@ -135,6 +142,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     return;
   }
   /*没有记录就创建*/
+  // auto node1 = LRUKNode();
   auto node = new LRUKNode();
   node->fid_ = frame_id;
   node->k_ = 1;

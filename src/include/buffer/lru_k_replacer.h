@@ -37,8 +37,8 @@ class LRUKNode {
   frame_id_t fid_;
   bool is_evictable_{false};
   size_t timestamp_;
-  LRUKNode* next_{nullptr};
-  LRUKNode* front_{nullptr};
+  LRUKNode *next_{nullptr};
+  LRUKNode *front_{nullptr};
 };
 /**
  * LRUKReplacer implements the LRU-k replacement policy.
@@ -69,7 +69,8 @@ class LRUKReplacer {
    *
    * @brief Destroys the LRUReplacer.
    */
-  ~LRUKReplacer() = default;
+  ~LRUKReplacer();
+  //~LRUKReplacer() = default;
 
   /**
    * TODO(P1): Add implementation
@@ -155,11 +156,11 @@ class LRUKReplacer {
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
   std::unordered_map<frame_id_t, LRUKNode *> history_store_;
-  LRUKNode* history_head_{nullptr};
-  LRUKNode* history_tail_{nullptr};
-  std::unordered_map<frame_id_t, LRUKNode*> cache_store_;
-  LRUKNode* cache_head_{nullptr};
-  LRUKNode* cache_tail_{nullptr};
+  LRUKNode *history_head_{nullptr};
+  LRUKNode *history_tail_{nullptr};
+  std::unordered_map<frame_id_t, LRUKNode *> cache_store_;
+  LRUKNode *cache_head_{nullptr};
+  LRUKNode *cache_tail_{nullptr};
   size_t current_timestamp_{0};
   size_t curr_size_{0};
   size_t replacer_size_;

@@ -125,7 +125,6 @@ TEST(BufferPoolManagerTest, SampleTest) {  // DISABLED_SampleTest
   }
   for (int i = 0; i < 4; ++i) {
     EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
-    printf("%d\n+++++++++", page_id_temp);
   }
 
   // Scenario: We should be able to fetch the data we wrote a while ago.

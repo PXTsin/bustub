@@ -13,6 +13,7 @@
 #include "buffer/buffer_pool_manager.h"
 
 #include <cstdio>
+#include <iostream>
 #include <random>
 #include <string>
 
@@ -22,7 +23,7 @@ namespace bustub {
 
 // NOLINTNEXTLINE
 // Check whether pages containing terminal characters can be recovered
-TEST(BufferPoolManagerTest, BinaryDataTest) {//DISABLED_BinaryDataTest
+TEST(BufferPoolManagerTest, BinaryDataTest) {  // DISABLED_BinaryDataTest
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;
@@ -88,7 +89,7 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {//DISABLED_BinaryDataTest
 }
 
 // NOLINTNEXTLINE
-TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
+TEST(BufferPoolManagerTest, SampleTest) {  // DISABLED_SampleTest
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;
@@ -124,6 +125,7 @@ TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
   }
   for (int i = 0; i < 4; ++i) {
     EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
+    printf("%d\n+++++++++", page_id_temp);
   }
 
   // Scenario: We should be able to fetch the data we wrote a while ago.

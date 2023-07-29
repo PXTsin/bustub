@@ -11,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "buffer/buffer_pool_manager.h"
+#include <cstddef>
 #include <cstdlib>
+#include <utility>
 
 #include "common/config.h"
 #include "common/exception.h"
@@ -40,6 +42,18 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 }
 
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
+auto BufferPoolManager::FindReplace() -> frame_id_t * {
+  frame_id_t *fid = nullptr;
+  if (!free_list_.empty()) {
+    *fid = free_list_.front();
+    free_list_.pop_front();
+  } else { /*从replacer取*/
+    if (!replacer_->Evict(fid)) {
+      return nullptr;
+    }
+  }
+  return fid;
+}
 
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
   frame_id_t fid;
@@ -61,17 +75,20 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
    * you should write it back to the disk first. You also need to reset the memory and metadata for the new page.
    */
   /*判断是否为脏页并处理*/
-  if (pages_[pid].IsDirty()) {
-    disk_manager_->WritePage(pid, pages_[pid].GetData());
-    pages_[pid].ResetMemory();
+  if (pages_[pid % pool_size_].IsDirty()) {
+    disk_manager_->WritePage(pid, pages_[pid % pool_size_].GetData());
+    pages_[pid % pool_size_].ResetMemory();
+    pages_[pid % pool_size_].is_dirty_ = false;
   }
-  pages_[pid].pin_count_ = 1;
-  return &pages_[pid];
+  pages_[pid % pool_size_].pin_count_ = 1;
+  pages_[pid % pool_size_].page_id_ = pid;
+  return &pages_[pid % pool_size_];
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
-  Page *p = &pages_[page_id];
+  Page *p = &pages_[page_id % pool_size_];
   if (page_table_.count(page_id) > 0) {
+    replacer_->RecordAccess(page_table_[page_id]);
   } else {
     frame_id_t fid;
     if (!free_list_.empty()) {
@@ -85,23 +102,28 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     replacer_->RecordAccess(fid);
     replacer_->SetEvictable(fid, false);
     page_table_[page_id] = fid;
-    if (pages_[page_id].IsDirty()) {
-      disk_manager_->WritePage(page_id, pages_[page_id].GetData());
-      pages_[page_id].ResetMemory();
+    if (pages_[page_id % pool_size_].IsDirty()) {
+      disk_manager_->WritePage(page_id, pages_[page_id % pool_size_].GetData());
+      pages_[page_id % pool_size_].ResetMemory();
+      pages_[page_id % pool_size_].is_dirty_ = false;
     }
-    disk_manager_->ReadPage(page_id, pages_[page_id].GetData());
+    pages_[page_id % pool_size_].pin_count_ = 1;
+    pages_[page_id % pool_size_].page_id_ = page_id;
   }
+  disk_manager_->ReadPage(page_id, pages_[page_id % pool_size_].GetData());
   p->pin_count_++;
   return p;
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
-  if (page_table_.count(page_id) == 0 || pages_[page_id].GetPinCount() <= 0) {
+  if (page_table_.count(page_id) == 0 || pages_[page_id % pool_size_].GetPinCount() <= 0) {
     return false;
   }
-  pages_[page_id].is_dirty_ = is_dirty;
-  if (--pages_[page_id].pin_count_ == 0) {
-    replacer_->SetEvictable(page_table_[page_id], true);
+  if (is_dirty) {
+    pages_[page_id % pool_size_].is_dirty_ = is_dirty;
+  }
+  if (--pages_[page_id % pool_size_].pin_count_ == 0) {
+    replacer_->SetEvictable(page_table_[page_id % pool_size_], true);
   }
   return true;
 }
@@ -110,15 +132,15 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
   if (page_table_.count(page_id) == 0) {
     return false;
   }
-  disk_manager_->WritePage(page_id, pages_[page_id].GetData());
-  pages_[page_id].is_dirty_ = false;
+  disk_manager_->WritePage(page_id, pages_[page_id % pool_size_].GetData());
+  pages_[page_id % pool_size_].is_dirty_ = false;
   return true;
 }
 
 void BufferPoolManager::FlushAllPages() {
   for (auto &e : page_table_) {
-    disk_manager_->WritePage(e.first, pages_[e.first].GetData());
-    pages_[e.first].is_dirty_ = false;
+    disk_manager_->WritePage(e.first, pages_[e.first % pool_size_].GetData());
+    pages_[e.first % pool_size_].is_dirty_ = false;
   }
 }
 
@@ -126,29 +148,32 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   if (page_table_.count(page_id) == 0) {
     return true;
   }
-  if (pages_[page_id].GetPinCount() > 0) {
+  if (pages_[page_id % pool_size_].GetPinCount() > 0) {
     return false;
   }
   replacer_->Remove(page_table_[page_id]);
   free_list_.emplace_back(page_table_[page_id]);
   page_table_.erase(page_id);
-  pages_[page_id].ResetMemory();
+  pages_[page_id % pool_size_].ResetMemory();
+  pages_[page_id % pool_size_].pin_count_ = 0;
   DeallocatePage(page_id);
   return true;
 }
 
-auto BufferPoolManager::AllocatePage() -> page_id_t { return (next_page_id_++)%pool_size_; }
+auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
-auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard { return {this, &pages_[page_id]}; }
+auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
+  return {this, &pages_[page_id % pool_size_]};
+}
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
-  pages_[page_id].RLatch();
-  return {this, &pages_[page_id]};
+  pages_[page_id % pool_size_].RLatch();
+  return {this, &pages_[page_id % pool_size_]};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
-  pages_[page_id].WLatch();
-  return {this, &pages_[page_id]};
+  pages_[page_id % pool_size_].WLatch();
+  return {this, &pages_[page_id % pool_size_]};
 }
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard { return {this, NewPage(page_id)}; }

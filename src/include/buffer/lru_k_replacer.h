@@ -70,7 +70,6 @@ class LRUKReplacer {
    * @brief Destroys the LRUReplacer.
    */
   ~LRUKReplacer();
-  //~LRUKReplacer() = default;
 
   /**
    * TODO(P1): Add implementation
@@ -161,7 +160,6 @@ class LRUKReplacer {
   std::unordered_map<frame_id_t, LRUKNode *> cache_store_;
   LRUKNode *cache_head_{nullptr};
   LRUKNode *cache_tail_{nullptr};
-  size_t current_timestamp_{0};
   size_t curr_size_{0};
   size_t replacer_size_;
   size_t k_;

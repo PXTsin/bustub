@@ -25,7 +25,9 @@
 #include "storage/page/page_guard.h"
 
 namespace bustub {
-
+class BasicPageGuard;
+class ReadPageGuard;
+class WritePageGuard;
 /**
  * BufferPoolManager reads disk pages to and from its internal buffer pool.
  */

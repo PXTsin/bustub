@@ -28,7 +28,7 @@ LRUKReplacer::~LRUKReplacer() {
   for (auto &e : cache_store_) {
     delete e.second;
   }
-};
+}
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
   auto func = [&frame_id, this](LRUKNode *tail) {

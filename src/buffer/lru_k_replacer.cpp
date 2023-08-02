@@ -17,169 +17,89 @@
 #include <utility>
 #include "common/config.h"
 #include "common/exception.h"
+#include "fmt/ostream.h"
 
 namespace bustub {
 
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
-LRUKReplacer::~LRUKReplacer() {
-  for (auto &e : history_store_) {
-    delete e.second;
-  }
-  for (auto &e : cache_store_) {
-    delete e.second;
-  }
-}
+LRUKReplacer::~LRUKReplacer() { curr_size_ = 0; }
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
-  auto func = [&frame_id, this](LRUKNode *tail) {
-    auto temp = tail;
-    /*找到第一个可以放逐的frame*/
-    while (temp != nullptr && !temp->is_evictable_) {
-      temp = temp->front_;
+  auto myevit = [this, &frame_id](auto e) {
+    if (node_store_[e].is_evictable_) {
+      *frame_id = e;
+      if (node_store_[e].k_ < k_) {
+        //node_less_k_.erase(node_store_[e].pos_);
+        node_less_k_.erase(std::find(node_less_k_.begin(), node_less_k_.end(), node_store_[e].fid_));
+      } else {
+        //node_more_k_.erase(node_store_[e].pos_);
+        node_more_k_.erase(std::find(node_more_k_.begin(), node_more_k_.end(), node_store_[e].fid_));
+      }
+      node_store_.erase(e);
+      --curr_size_;
+      return true;
     }
-    if (temp == nullptr) {
-      return false;
-    }
-    /*更新链表头或尾*/
-    if (temp == history_head_) {
-      history_head_ = temp->next_;
-    }
-    if (temp == history_tail_) {
-      history_tail_ = temp->front_;
-    }
-    if (temp == cache_head_) {
-      cache_head_ = temp->next_;
-    }
-    if (temp == cache_tail_) {
-      cache_tail_ = temp->front_;
-    }
-    ////////////////////
-    /*从链表中摘除该节点*/
-    if (temp->front_ != nullptr) {
-      temp->front_->next_ = temp->next_;
-    }
-    if (temp->next_ != nullptr) {
-      temp->next_->front_ = temp->front_;
-    }
-    --curr_size_;
-    temp->k_ = 0;
-    /////////////////
-    *frame_id = temp->fid_;
-    Remove(temp->fid_);
-    return true;
+    return false;
   };
-  // if (history_head_ != nullptr) {  // cache_store_.empty()
-  //   return func(history_tail_);
-  // }
-  // return func(cache_tail_);
-  if (func(history_tail_)) {  // cache_store_.empty()
-    return true;
-  }
-  return func(cache_tail_);
+  return std::any_of(node_less_k_.begin(), node_less_k_.end(), myevit) ||
+         std::any_of(node_more_k_.begin(), node_more_k_.end(), myevit);
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
   BUSTUB_ASSERT(static_cast<size_t>(frame_id) <= replacer_size_, "frame id is invalid");
   std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
-  /*在缓存中*/
-  if (cache_store_[frame_id] != nullptr) {
-    auto frame = cache_store_[frame_id];
-    if (cache_tail_ == frame) {
-      cache_tail_ = frame->front_;
-    }
-    if (cache_head_ == frame) {
-      cache_head_ = frame->next_;
-    }
-    if (frame->front_ != nullptr) {
-      frame->front_->next_ = frame->next_;
-    }
-    if (frame->next_ != nullptr) {
-      frame->next_->front_ = frame->front_;
-    }
-    /*访问后放到链表头部*/
-    cache_head_->front_ = frame;
-    frame->next_ = cache_head_;
-    frame->front_ = nullptr;
-    cache_head_ = frame;
-    cache_head_->front_ = nullptr;
-    frame->k_++;
+  /*无记录，创建新记录*/
+  if (node_store_.count(frame_id) == 0) {
+    node_store_[frame_id] = LRUKNode();
+    auto node = &node_store_[frame_id];
+    node->fid_ = frame_id;
+    node_less_k_.push_back(node->fid_);
+    auto it = node_less_k_.begin();
+    std::advance(it, node_less_k_.size() - 1);
+    node->pos_ = it;
     return;
   }
-  /*在历史存储中*/
-  if (history_store_[frame_id] != nullptr) {
-    auto frame = history_store_[frame_id];
-    if (history_tail_ == frame) {
-      history_tail_ = frame->front_;
-    }
-    if (history_head_ == frame) {
-      history_head_ = frame->next_;  // history_head_=frame->next_;//
-    }
-    if (frame->front_ != nullptr) {
-      frame->front_->next_ = frame->next_;
-    }
-    if (frame->next_ != nullptr) {
-      frame->next_->front_ = frame->front_;
-    }
-    /*达到k次后，放入到缓存中*/
-    if (++frame->k_ == k_) {
-      cache_store_[frame_id] = frame;
-      history_store_.erase(frame_id);
-      frame->next_ = cache_head_;
-      frame->front_ = nullptr;
-      if (cache_head_ != nullptr) {
-        cache_head_->front_ = frame;
-      } else {
-        cache_tail_ = frame;
-      }
-      cache_head_ = frame;
+  /*有记录*/
+  auto node = &node_store_[frame_id];
+  /*小于k*/
+  if (node->k_ < k_) {
+    // node_less_k_.erase(node->pos_);
+    node_less_k_.erase(std::find(node_less_k_.begin(), node_less_k_.end(), node->fid_));
+    /*访问后恰好为k*/
+    if (++node->k_ == k_) {
+      node_more_k_.push_back(node->fid_);
+      auto it = node_more_k_.begin();
+      std::advance(it, node_more_k_.size() - 1);
+      node->pos_ = it;
       return;
     }
-    /*访问后放到链表头部*/
-    history_head_->front_ = frame;
-    frame->next_ = history_head_;
-    history_head_ = frame;
-    history_head_->front_ = nullptr;
-    return;
+    node_less_k_.push_back(node->fid_);
+    auto it = node_less_k_.begin();
+    std::advance(it, node_less_k_.size() - 1);
+    node->pos_ = it;
+  } else { /*大于等于k*/
+    node_more_k_.erase(std::find(node_more_k_.begin(), node_more_k_.end(), node->fid_));
+    ++node->k_;
+    node_more_k_.push_back(node->fid_);
+    auto it = node_more_k_.begin();
+    std::advance(it, node_more_k_.size() - 1);
+    node->pos_ = it;
   }
-  /*没有记录就创建*/
-  // auto node1 = LRUKNode();
-  auto node = new LRUKNode();
-  node->fid_ = frame_id;
-  node->k_ = 1;
-  history_store_[frame_id] = node;
-  /**/
-  if (history_head_ == nullptr) {
-    history_head_ = node;
-    history_tail_ = node;
-    return;
-  }
-  history_head_->front_ = node;
-  node->next_ = history_head_;
-  history_head_ = node;
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
-  auto temp = (cache_store_[frame_id] != nullptr) ? cache_store_[frame_id] : history_store_[frame_id];
-  if (temp == nullptr) {
-    return;
-  }
-  temp->fid_ = frame_id;
-  curr_size_ = set_evictable ? curr_size_ + static_cast<size_t>(set_evictable ^ temp->is_evictable_)
-                             : curr_size_ - static_cast<size_t>(set_evictable ^ temp->is_evictable_);
-  temp->is_evictable_ = set_evictable;
-}
-
-void LRUKReplacer::Remove(frame_id_t frame_id) {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
-  if (cache_store_[frame_id] != nullptr) {
-    auto temp = cache_store_[frame_id];
-    cache_store_.erase(frame_id);
-    delete temp;
-  } else if (history_store_[frame_id] != nullptr) {
-    auto temp = history_store_[frame_id];
-    history_store_.erase(frame_id);
-    delete temp;
+  if (set_evictable) {
+    auto node = &node_store_[frame_id];
+    if (!node->is_evictable_) {
+      node->is_evictable_ = set_evictable;
+      ++curr_size_;
+    }
+  } else {
+    auto node = &node_store_[frame_id];
+    if (node->is_evictable_) {
+      node->is_evictable_ = set_evictable;
+      --curr_size_;
+    }
   }
 }
 

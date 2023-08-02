@@ -31,14 +31,11 @@ class LRUKNode {
  public:
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
-
-  std::list<size_t> history_;
-  size_t k_{0};
-  frame_id_t fid_;
+  size_t k_{1};
+  frame_id_t fid_{};
   bool is_evictable_{false};
-  size_t timestamp_;
-  LRUKNode *next_{nullptr};
-  LRUKNode *front_{nullptr};
+  std::list<frame_id_t>::iterator pos_;
+  std::list<size_t> history_;
 };
 /**
  * LRUKReplacer implements the LRU-k replacement policy.
@@ -154,12 +151,10 @@ class LRUKReplacer {
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
-  std::unordered_map<frame_id_t, LRUKNode *> history_store_;
-  LRUKNode *history_head_{nullptr};
-  LRUKNode *history_tail_{nullptr};
-  std::unordered_map<frame_id_t, LRUKNode *> cache_store_;
-  LRUKNode *cache_head_{nullptr};
-  LRUKNode *cache_tail_{nullptr};
+  std::unordered_map<frame_id_t, LRUKNode> node_store_;
+  std::list<frame_id_t> node_less_k_;
+  std::list<frame_id_t> node_more_k_;
+  size_t current_timestamp_{0};
   size_t curr_size_{0};
   size_t replacer_size_;
   size_t k_;

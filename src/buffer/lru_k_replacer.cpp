@@ -28,10 +28,10 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     if (node_store_[e].is_evictable_) {
       *frame_id = e;
       if (node_store_[e].k_ < k_) {
-        //node_less_k_.erase(node_store_[e].pos_);
+        // node_less_k_.erase(node_store_[e].pos_);
         node_less_k_.erase(std::find(node_less_k_.begin(), node_less_k_.end(), node_store_[e].fid_));
       } else {
-        //node_more_k_.erase(node_store_[e].pos_);
+        // node_more_k_.erase(node_store_[e].pos_);
         node_more_k_.erase(std::find(node_more_k_.begin(), node_more_k_.end(), node_store_[e].fid_));
       }
       node_store_.erase(e);
@@ -102,7 +102,23 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
     }
   }
 }
-
+void LRUKReplacer::Remove(frame_id_t frame_id) {
+  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  if (node_store_.count(frame_id) > 0) {
+    auto node = &node_store_[frame_id];
+    if (node->is_evictable_) {
+      --curr_size_;
+      if (node->k_ < k_) {
+        node_less_k_.erase(std::find(node_less_k_.begin(), node_less_k_.end(), frame_id));
+      } else {
+        node_more_k_.erase(std::find(node_more_k_.begin(), node_more_k_.end(), frame_id));
+      }
+      node_store_.erase(frame_id);
+      return;
+    }
+    throw Exception("Remove is called on a non-evictable frame");
+  }
+}
 auto LRUKReplacer::Size() -> size_t { return curr_size_; }
 
 }  // namespace bustub

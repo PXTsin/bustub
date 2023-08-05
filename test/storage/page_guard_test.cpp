@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <random>
 #include <string>
+#include <utility>
 
 #include "buffer/buffer_pool_manager.h"
 #include "storage/disk/disk_manager_memory.h"
@@ -34,13 +35,19 @@ TEST(PageGuardTest, SampleTest) {  // DISABLED_
   page_id_t page_id_temp;
   auto *page0 = bpm->NewPage(&page_id_temp);
 
-  auto guarded_page = BasicPageGuard(bpm.get(), page0);
+  snprintf(page0->GetData(), BUSTUB_PAGE_SIZE, "Hello");
+  EXPECT_EQ(0, strcmp(page0->GetData(), "Hello"));
 
+  auto guarded_page = BasicPageGuard(bpm.get(), page0);
   EXPECT_EQ(page0->GetData(), guarded_page.GetData());
   EXPECT_EQ(page0->GetPageId(), guarded_page.PageId());
   EXPECT_EQ(1, page0->GetPinCount());
 
-  guarded_page.Drop();
+  auto guarded_page2 = std::move(guarded_page);
+  EXPECT_EQ(page0->GetData(), guarded_page2.GetData());
+  EXPECT_EQ(page0->GetPageId(), guarded_page2.PageId());
+  EXPECT_EQ(1, page0->GetPinCount());
+  guarded_page2.Drop();
 
   EXPECT_EQ(0, page0->GetPinCount());
 

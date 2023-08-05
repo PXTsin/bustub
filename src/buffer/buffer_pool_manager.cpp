@@ -12,6 +12,7 @@
 
 #include "buffer/buffer_pool_manager.h"
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <utility>
@@ -70,9 +71,18 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
     fid = free_list_.front();
     free_list_.pop_front();
   } else { /*从replacer取*/
-    if (replacer_->Evict(&fid)) {
-      page_id_t t = pages_[fid].page_id_;
-      page_table_.erase(t);
+    /*判断页面是否都还在pin*/
+    size_t flag = 0;
+    for (size_t i = 0; i < pool_size_; ++i) {
+      if (&pages_[i] != nullptr && pages_[i].pin_count_ > 0) {
+        ++flag;
+      }
+    }
+    if (flag < pool_size_ && replacer_->Evict(&fid)) {
+      if (&pages_[fid] == nullptr) {
+        return nullptr;
+      }
+      page_table_.erase(pages_[fid].page_id_);
     } else {
       return nullptr;
     }
@@ -101,21 +111,29 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
   frame_id_t fid = 0;
   if (page_table_.count(page_id) > 0) {
     fid = page_table_[page_id];
-    replacer_->RecordAccess(fid);
     pages_[fid].pin_count_++;
   } else {
     if (!free_list_.empty()) {
       fid = free_list_.front();
       free_list_.pop_front();
     } else {
-      if (replacer_->Evict(&fid)) {
+      /*判断页面是否都还在pin*/
+      size_t flag = 0;
+      for (size_t i = 0; i < pool_size_; ++i) {
+        if (&pages_[i] != nullptr && pages_[i].pin_count_ > 0) {
+          ++flag;
+        }
+      }
+      if (flag < pool_size_ && replacer_->Evict(&fid)) {
+        if (&pages_[fid] == nullptr) {
+          return nullptr;
+        }
         page_table_.erase(pages_[fid].page_id_);
       } else {
         return nullptr;
       }
     }
-    replacer_->RecordAccess(fid);
-    replacer_->SetEvictable(fid, false);
+
     page_table_[page_id] = fid;
     if (pages_[fid].IsDirty()) {
       disk_manager_->WritePage(pages_[fid].page_id_, pages_[fid].GetData());
@@ -124,8 +142,10 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
     }
     pages_[fid].pin_count_ = 1;
     pages_[fid].page_id_ = page_id;
+    disk_manager_->ReadPage(page_id, pages_[fid].GetData());
   }
-  disk_manager_->ReadPage(page_id, pages_[fid].GetData());
+  replacer_->RecordAccess(fid);
+  replacer_->SetEvictable(fid, false);
   return &pages_[fid];
 }
 
@@ -172,19 +192,20 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   if (pages_[fid].GetPinCount() > 0) {
     return false;
   }
+  if (pages_[fid].IsDirty()) {
+    disk_manager_->WritePage(page_id, pages_[fid].GetData());
+  }
   replacer_->Remove(fid);
   free_list_.emplace_back(fid);
   page_table_.erase(page_id);
   pages_[fid].ResetMemory();
   pages_[fid].pin_count_ = 0;
+  pages_[fid].is_dirty_ = false;
   DeallocatePage(page_id);
   return true;
 }
 
-auto BufferPoolManager::AllocatePage() -> page_id_t {
-  std::lock_guard<std::mutex> lk(latch_);
-  return next_page_id_++;
-}
+auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
 auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
   std::lock_guard<std::mutex> lk(latch_);

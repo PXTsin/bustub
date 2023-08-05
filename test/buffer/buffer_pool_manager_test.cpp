@@ -144,5 +144,149 @@ TEST(BufferPoolManagerTest, SampleTest) {  // DISABLED_SampleTest
   delete bpm;
   delete disk_manager;
 }
+TEST(BufferPoolManagerTest, SampleTest2) {  // DISABLED_SampleTest
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 10;
+  const size_t k = 5;
 
+  auto *disk_manager = new DiskManager(db_name);
+  auto *bpm = new BufferPoolManager(buffer_pool_size, disk_manager, k);
+
+  page_id_t page_id_temp;
+  auto *page0 = bpm->NewPage(&page_id_temp);
+
+  snprintf(page0->GetData(), BUSTUB_PAGE_SIZE, "Hello");
+  EXPECT_EQ(0, strcmp(page0->GetData(), "Hello"));
+
+  for (size_t i = 1; i < buffer_pool_size; ++i) {
+    EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
+  }
+
+  // Scenario: We should be able to fetch the data we wrote a while ago.
+  page0 = bpm->FetchPage(0);
+  EXPECT_EQ(0, strcmp(page0->GetData(), "Hello"));
+
+  disk_manager->ShutDown();
+  remove("test.db");
+
+  delete bpm;
+  delete disk_manager;
+}
+TEST(BufferPoolManagerTest, SampleTest3) {  // DISABLED_SampleTest
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 10;
+  const size_t k = 5;
+
+  auto *disk_manager = new DiskManager(db_name);
+  auto *bpm83 = new BufferPoolManager(buffer_pool_size, disk_manager, k);
+
+  page_id_t page_id_temp;
+
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->FetchPage(0);
+  bpm83->UnpinPage(0, true);
+  bpm83->UnpinPage(0, true);
+  bpm83->FlushPage(0);
+  bpm83->FetchPage(1);
+  bpm83->UnpinPage(1, true);
+  bpm83->UnpinPage(1, true);
+  bpm83->FlushPage(1);
+  bpm83->FetchPage(2);
+  bpm83->UnpinPage(2, true);
+  bpm83->UnpinPage(2, true);
+  bpm83->FlushPage(2);
+  bpm83->FetchPage(3);
+  bpm83->UnpinPage(3, true);
+  bpm83->UnpinPage(3, true);
+  bpm83->FlushPage(3);
+  bpm83->FetchPage(4);
+  bpm83->UnpinPage(4, true);
+  bpm83->UnpinPage(4, true);
+  bpm83->FlushPage(4);
+  bpm83->FetchPage(5);
+  bpm83->UnpinPage(5, true);
+  bpm83->UnpinPage(5, true);
+  bpm83->FlushPage(5);
+  bpm83->FetchPage(6);
+  bpm83->UnpinPage(6, true);
+  bpm83->UnpinPage(6, true);
+  bpm83->FlushPage(6);
+  bpm83->FetchPage(7);
+  bpm83->UnpinPage(7, true);
+  bpm83->UnpinPage(7, true);
+  bpm83->FlushPage(7);
+  bpm83->FetchPage(8);
+  bpm83->UnpinPage(8, true);
+  bpm83->UnpinPage(8, true);
+  bpm83->FlushPage(8);
+  bpm83->FetchPage(9);
+  bpm83->UnpinPage(9, true);
+  bpm83->UnpinPage(9, true);
+  bpm83->FlushPage(9);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(10, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(11, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(12, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(13, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(14, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(15, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(16, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(17, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(18, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->UnpinPage(19, true);
+  bpm83->FetchPage(0);
+  bpm83->FetchPage(1);
+  bpm83->FetchPage(2);
+  bpm83->FetchPage(3);
+  bpm83->FetchPage(4);
+  bpm83->FetchPage(5);
+  bpm83->FetchPage(6);
+  bpm83->FetchPage(7);
+  bpm83->FetchPage(8);
+  bpm83->FetchPage(9);
+  bpm83->UnpinPage(4, true);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->FetchPage(4);
+  bpm83->FetchPage(5);
+  bpm83->FetchPage(6);
+  bpm83->FetchPage(7);
+  bpm83->UnpinPage(5, false);
+  bpm83->UnpinPage(6, false);
+  bpm83->UnpinPage(7, false);
+  bpm83->UnpinPage(5, false);
+  bpm83->UnpinPage(6, false);
+  bpm83->UnpinPage(7, false);
+  // EXPECT_EQ(6, page_id_temp);
+  bpm83->NewPage(&page_id_temp);
+  bpm83->FetchPage(5);
+  bpm83->FetchPage(7);
+  EXPECT_EQ(nullptr, bpm83->FetchPage(6));
+  bpm83->UnpinPage(21, false);
+  bpm83->FetchPage(6);
+  EXPECT_EQ(nullptr, bpm83->NewPage(&page_id_temp));
+
+  disk_manager->ShutDown();
+  remove("test.db");
+
+  delete bpm83;
+  delete disk_manager;
+}
 }  // namespace bustub

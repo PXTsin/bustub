@@ -13,17 +13,25 @@
 #include "buffer/lru_k_replacer.h"
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <utility>
 #include "common/config.h"
 #include "common/exception.h"
+#include "fmt/core.h"
 #include "fmt/ostream.h"
 
 namespace bustub {
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {
+  id_ = random() % 100;
+  printf("LRUKReplacer lru_replacer%zu(%zu, %zu);\n", id_, num_frames, k);
+}
 LRUKReplacer::~LRUKReplacer() { curr_size_ = 0; }
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
+  printf("lru_replacer%zu.Evict(&value);\n", id_);
+  std::lock_guard<std::mutex> lk(latch_);
   auto myevit = [this, &frame_id](auto e) {
     if (node_store_[e].is_evictable_) {
       *frame_id = e;
@@ -45,8 +53,9 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
+  printf("lru_replacer%zu.RecordAccess(%d);\n", id_, frame_id);
   BUSTUB_ASSERT(static_cast<size_t>(frame_id) <= replacer_size_, "frame id is invalid");
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   /*无记录，创建新记录*/
   if (node_store_.count(frame_id) == 0) {
     node_store_[frame_id] = LRUKNode();
@@ -62,20 +71,16 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
   auto node = &node_store_[frame_id];
   /*小于k*/
   if (node->k_ < k_) {
-    // node_less_k_.erase(node->pos_);
-    node_less_k_.erase(std::find(node_less_k_.begin(), node_less_k_.end(), node->fid_));
     /*访问后恰好为k*/
     if (++node->k_ == k_) {
+      // node_less_k_.erase(node->pos_);
+      node_less_k_.erase(std::find(node_less_k_.begin(), node_less_k_.end(), node->fid_));
       node_more_k_.push_back(node->fid_);
       auto it = node_more_k_.begin();
       std::advance(it, node_more_k_.size() - 1);
       node->pos_ = it;
       return;
     }
-    node_less_k_.push_back(node->fid_);
-    auto it = node_less_k_.begin();
-    std::advance(it, node_less_k_.size() - 1);
-    node->pos_ = it;
   } else { /*大于等于k*/
     node_more_k_.erase(std::find(node_more_k_.begin(), node_more_k_.end(), node->fid_));
     ++node->k_;
@@ -87,7 +92,8 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  printf("lru_replacer%zu.SetEvictable(%d,%d);\n", id_, frame_id, static_cast<int>(set_evictable));
+  std::lock_guard<std::mutex> lk(latch_);
   if (set_evictable) {
     auto node = &node_store_[frame_id];
     if (!node->is_evictable_) {
@@ -103,7 +109,8 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   }
 }
 void LRUKReplacer::Remove(frame_id_t frame_id) {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  printf("Remove(%d)\n", frame_id);
+  std::lock_guard<std::mutex> lk(latch_);
   if (node_store_.count(frame_id) > 0) {
     auto node = &node_store_[frame_id];
     if (node->is_evictable_) {

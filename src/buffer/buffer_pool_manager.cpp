@@ -63,7 +63,7 @@ auto BufferPoolManager::FindReplace() -> frame_id_t * {
 }
 
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   frame_id_t fid;
   page_id_t pid;
   if (!free_list_.empty()) {
@@ -97,7 +97,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   frame_id_t fid = 0;
   if (page_table_.count(page_id) > 0) {
     fid = page_table_[page_id];
@@ -130,7 +130,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   frame_id_t fid = page_table_[page_id];
   if (page_table_.count(page_id) == 0 || pages_[fid].GetPinCount() <= 0) {
     return false;
@@ -145,7 +145,7 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
 }
 
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   if (page_table_.count(page_id) == 0) {
     return false;
   }
@@ -156,7 +156,7 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
 }
 
 void BufferPoolManager::FlushAllPages() {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   for (auto &e : page_table_) {
     disk_manager_->WritePage(e.first, pages_[e.second].GetData());
     pages_[e.second].is_dirty_ = false;
@@ -164,7 +164,7 @@ void BufferPoolManager::FlushAllPages() {
 }
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   if (page_table_.count(page_id) == 0) {
     return true;
   }
@@ -182,32 +182,32 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 }
 
 auto BufferPoolManager::AllocatePage() -> page_id_t {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   return next_page_id_++;
 }
 
 auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   pages_[page_table_[page_id]].pin_count_++;
   return {this, &pages_[page_table_[page_id]]};
 }
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   pages_[page_table_[page_id]].RLatch();
   pages_[page_table_[page_id]].pin_count_++;
   return {this, &pages_[page_table_[page_id]]};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   pages_[page_table_[page_id]].WLatch();
   pages_[page_table_[page_id]].pin_count_++;
   return {this, &pages_[page_table_[page_id]]};
 }
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
-  std::unique_lock<std::mutex> lockgd(latch_, std::try_to_lock);
+  std::lock_guard<std::mutex> lk(latch_);
   return {this, NewPage(page_id)};
 }
 

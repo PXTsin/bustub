@@ -24,13 +24,9 @@
 
 namespace bustub {
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {
-  id_ = random() % 100;
-  printf("LRUKReplacer lru_replacer%zu(%zu, %zu);\n", id_, num_frames, k);
-}
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 LRUKReplacer::~LRUKReplacer() { curr_size_ = 0; }
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
-  printf("lru_replacer%zu.Evict(&value);\n", id_);
   std::lock_guard<std::mutex> lk(latch_);
   auto myevit = [this, &frame_id](auto e) {
     if (node_store_[e].is_evictable_) {
@@ -53,7 +49,6 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
-  printf("lru_replacer%zu.RecordAccess(%d);\n", id_, frame_id);
   BUSTUB_ASSERT(static_cast<size_t>(frame_id) <= replacer_size_, "frame id is invalid");
   std::lock_guard<std::mutex> lk(latch_);
   /*无记录，创建新记录*/
@@ -92,7 +87,6 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  printf("lru_replacer%zu.SetEvictable(%d,%d);\n", id_, frame_id, static_cast<int>(set_evictable));
   std::lock_guard<std::mutex> lk(latch_);
   if (set_evictable) {
     auto node = &node_store_[frame_id];
@@ -109,7 +103,6 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   }
 }
 void LRUKReplacer::Remove(frame_id_t frame_id) {
-  printf("Remove(%d)\n", frame_id);
   std::lock_guard<std::mutex> lk(latch_);
   if (node_store_.count(frame_id) > 0) {
     auto node = &node_store_[frame_id];

@@ -1,10 +1,20 @@
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <sstream>
 #include <string>
+#include <utility>
 
+#include "common/config.h"
 #include "common/exception.h"
 #include "common/logger.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
+#include "storage/page/b_plus_tree_header_page.h"
+#include "storage/page/b_plus_tree_internal_page.h"
+#include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
+#include "storage/page/page_guard.h"
 
 namespace bustub {
 
@@ -26,7 +36,55 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, page_id_t header_page_id, BufferPool
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
+auto BPLUSTREE_TYPE::IsEmpty() const -> bool {
+  page_id_t page_id = GetRootPageId();
+  if (INVALID_PAGE_ID == page_id) {
+    return true;
+  }
+  auto guard = bpm_->FetchPageBasic(page_id);
+  auto page = reinterpret_cast<BPlusTreePage *>(guard.GetDataMut());
+  return page->GetSize() <= 0;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::GetPageLeaf(const KeyType &key, Context &ctx) -> page_id_t {
+  page_id_t page_id = GetRootPageId();
+  auto guard = bpm_->FetchPageWrite(page_id);
+  auto page = reinterpret_cast<BPlusTreePage *>(guard.GetDataMut());
+  ctx.write_set_.push_back(std::move(guard));
+  /*找到叶子节点*/
+  while (!page->IsLeafPage()) {
+    auto page2 = reinterpret_cast<InternalPage *>(page);
+    /*二分查找*/
+    // int l = 0;
+    // int h = page2->GetSize();
+    // int index = (l + h) / 2;
+    // for (; comparator_(key, page2->KeyAt(index)) != 0;) {
+    //   if (index == h || index == l) {
+    //     ++index;
+    //     break;
+    //   }
+    //   if (comparator_(key, page2->KeyAt(index)) > 0) {
+    //     l = index;
+    //   } else {
+    //     h = index;
+    //   }
+    //   index = (l + h) / 2;
+    // }
+    int index = 0;
+    while (comparator_(page2->KeyAt(index), key) <= 0 && index < page2->GetSize()) {
+      ++index;
+    }
+    if (index > 0) {
+      --index;
+    }
+    page_id = page2->ValueAt(index);
+    guard = bpm_->FetchPageWrite(page_id);
+    page = reinterpret_cast<BPlusTreePage *>(guard.GetDataMut());
+    ctx.write_set_.push_back(std::move(guard));
+  }
+  return page_id;
+};
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -37,10 +95,15 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *txn) -> bool {
-  // Declaration of context instance.
   Context ctx;
-  (void)ctx;
-  return false;
+  auto page_id = GetPageLeaf(key, ctx);
+  auto page = reinterpret_cast<LeafPage *>(bpm_->FetchPageBasic(page_id).GetDataMut());
+  int index = page->FindKeyIndex(key, comparator_);
+  if (index == -1) {
+    return false;
+  }
+  result->push_back(page->ValueAt(index));
+  return true;
 }
 
 /*****************************************************************************
@@ -55,10 +118,100 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
-  // Declaration of context instance.
+  if (IsEmpty()) {
+    page_id_t page_id{};
+    /*create new page*/
+    auto page = reinterpret_cast<LeafPage *>(bpm_->NewPage(&page_id)->GetData());
+    page->Init(leaf_max_size_);
+    /*set root_page_id_*/
+    auto page2 = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
+    page2->root_page_id_ = page_id;
+  }
   Context ctx;
-  (void)ctx;
-  return false;
+  GetPageLeaf(key, ctx);
+  auto page_tmp = ctx.write_set_.back().AsMut<LeafPage>();
+
+  /*不用分页*/
+  if (page_tmp->GetSize() < leaf_max_size_ - 1) {
+    /*insert in leaf*/
+    return page_tmp->InsertAt(key, value, comparator_);
+  }
+  /*分页*/
+  if (page_tmp->GetSize() >= leaf_max_size_ - 1) {
+    /*开辟新空间插入数据*/
+    auto temp = static_cast<LeafPage *>(malloc(BUSTUB_PAGE_SIZE + sizeof(MappingType)));
+    temp->InitData(page_tmp->GetData(), 0, leaf_max_size_ - 1);
+    temp->InsertAt(key, value, comparator_);
+    /*create new page*/
+    page_id_t page_id{};
+    auto page = reinterpret_cast<LeafPage *>(bpm_->NewPage(&page_id)->GetData());
+    page->Init(leaf_max_size_);
+    /*分页成L1和L2*/
+    page_tmp->InitData(temp->GetData(), 0, (leaf_max_size_ + 1) / 2);
+    page->InitData(temp->GetData(), (leaf_max_size_ + 1) / 2, leaf_max_size_);
+    /*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!l2.next_page_id=l1.next_page_id,l1.next_page_id=l2*/
+    page->SetNextPageId(page_tmp->GetNextPageId());
+    page_tmp->SetNextPageId(page_id);
+    free(temp);
+
+    /*将L2第一个key插入到父节点,若父节点满了，则父节点分页*/
+    ctx.write_set_.pop_back();
+    /*根页面分裂，创建新的根节点*/
+    if (ctx.write_set_.empty()) {
+      page_id_t page_id1 = GetRootPageId();
+      page_id_t page_id2 = page_id;
+      page_id_t root_page_id{};
+      bpm_->NewPage(&root_page_id);
+      auto root_page = reinterpret_cast<InternalPage *>(bpm_->FetchPageBasic(root_page_id).GetDataMut());
+      root_page->Init(internal_max_size_);
+      root_page->InsertAt(page_tmp->KeyAt(0), page_id1, comparator_);
+      root_page->InsertAt(page->KeyAt(0), page_id2, comparator_);
+      auto header_page = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
+      header_page->root_page_id_ = root_page_id;
+      return true;
+    }
+    auto parent = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
+    /*父页面不需要分页*/
+    if (parent->GetSize() < internal_max_size_) {
+      parent->InsertAt(page->KeyAt(0), page_id, comparator_);
+      return true;
+    }
+    /*父页面要分页*/
+    while (parent->GetSize() == internal_max_size_) {
+      auto temp = static_cast<InternalPage *>(malloc(BUSTUB_PAGE_SIZE + sizeof(MappingType)));
+      temp->InitData(parent->GetData(), 0, internal_max_size_);
+      temp->InsertAt(key, page_id, comparator_);
+      /*create new page*/
+      bpm_->NewPage(&page_id);
+      auto page = reinterpret_cast<InternalPage *>(bpm_->FetchPageBasic(page_id).GetDataMut());
+      page->Init(internal_max_size_);
+      /*分页成L1和L2*/
+      parent->InitData(parent->GetData(), 0, (internal_max_size_ + 1) / 2);
+      page->InitData(temp->GetData(), (internal_max_size_ + 1) / 2, internal_max_size_ + 1);
+      free(temp);
+
+      ctx.write_set_.pop_back();
+
+      /*根页面分裂，创建新的根节点*/
+      if (ctx.write_set_.empty()) {
+        page_id_t page_id1 = GetRootPageId();
+        page_id_t page_id2 = page_id;
+        page_id_t root_page_id{};
+        bpm_->NewPage(&root_page_id);
+        auto root_page = reinterpret_cast<InternalPage *>(bpm_->FetchPageBasic(root_page_id).GetDataMut());
+        root_page->Init(internal_max_size_);
+        root_page->InsertAt(parent->KeyAt(0), page_id1, comparator_);
+        root_page->InsertAt(page->KeyAt(0), page_id2, comparator_);
+        auto header_page = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
+        header_page->root_page_id_ = root_page_id;
+        break;
+      }
+      parent = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
+      parent->InsertAt(page->KeyAt(0), page_id, comparator_);
+    }
+  }
+
+  return true;
 }
 
 /*****************************************************************************
@@ -109,7 +262,11 @@ auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); 
  * @return Page id of the root of this tree
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return 0; }
+auto BPLUSTREE_TYPE::GetRootPageId() const -> page_id_t {
+  auto guard = bpm_->FetchPageBasic(header_page_id_);
+  auto page = guard.AsMut<BPlusTreeHeaderPage>();
+  return page->root_page_id_;
+}
 
 /*****************************************************************************
  * UTILITIES AND DEBUG

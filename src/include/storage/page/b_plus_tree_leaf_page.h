@@ -53,12 +53,17 @@ class BPlusTreeLeafPage : public BPlusTreePage {
    * @param max_size Max size of the leaf node
    */
   void Init(int max_size = LEAF_PAGE_SIZE);
-
+  void InitData(MappingType *arr, int l, int h);
+  auto GetData() -> MappingType *;
   // helper methods
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
-
+  auto ValueAt(int index) const -> ValueType;
+  /*-1表示key不存在*/
+  auto FindKeyIndex(const KeyType &key, const KeyComparator &comparator) -> int;
+  /*不会导致分页的插入*/
+  auto InsertAt(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> bool;
   /**
    * @brief for test only return a string representing all keys in
    * this leaf page formatted as "(key1,key2,key3,...)"

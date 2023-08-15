@@ -47,6 +47,10 @@ class BPlusTreeInternalPage : public BPlusTreePage {
    */
   void Init(int max_size = INTERNAL_PAGE_SIZE);
 
+  void InitData(MappingType *arr, int l, int h);  
+  auto GetData() -> MappingType *;
+  /*不会导致分页的插入*/
+  auto InsertAt(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> bool;
   /**
    * @param index The index of the key to get. Index must be non-zero.
    * @return Key at index

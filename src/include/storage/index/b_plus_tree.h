@@ -72,6 +72,8 @@ class BPlusTree {
   // Returns true if this B+ tree has no keys and values.
   auto IsEmpty() const -> bool;
 
+  auto GetPageLeaf(const KeyType &key,Context &ctx) -> page_id_t;
+
   // Insert a key-value pair into this B+ tree.
   auto Insert(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
 
@@ -82,7 +84,7 @@ class BPlusTree {
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *txn = nullptr) -> bool;
 
   // Return the page id of the root node
-  auto GetRootPageId() -> page_id_t;
+  auto GetRootPageId() const -> page_id_t;
 
   // Index iterator
   auto Begin() -> INDEXITERATOR_TYPE;

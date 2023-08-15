@@ -369,6 +369,11 @@ void BPLUSTREE_TYPE::Draw(BufferPoolManager *bpm, const std::string &outf) {
   out.close();
 }
 
+INDEX_TEMPLATE_ARGUMENTS
+void BPLUSTREE_TYPE::Dump2Name(){
+  Draw(bpm_, "/test/atestcpp/picture.txt");
+  system("dot -Tpng /test/atestcpp/picture.txt > /test/atestcpp/mytree.png");
+}
 /**
  * This method is used for debug only, You don't need to modify
  */

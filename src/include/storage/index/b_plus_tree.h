@@ -98,7 +98,7 @@ class BPlusTree {
 
   // Draw the B+ tree
   void Draw(BufferPoolManager *bpm, const std::string &outf);
-
+  void Dump2Name();
   /**
    * @brief draw a B+ tree, below is a printed
    * B+ tree(3 max leaf, 4 max internal) after inserting key:

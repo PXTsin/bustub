@@ -79,21 +79,20 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(const KeyType &key, const ValueTyp
     IncreaseSize(1);
     return true;
   }
-  int index = 0;
+  int index = 1;
   printf("comparator(KeyAt(index), key)=%d\n", comparator(KeyAt(index), key));
-  while (comparator(KeyAt(index), key) < 0 && index < GetSize()) {
+  while (comparator(KeyAt(index), key) <= 0 && index < GetSize()) {
     ++index;
   }
-  for (int i = GetSize(); i > index; --i) {
-    array_[i] = array_[i - 1];
-  }
+  std::move_backward(array_+index,array_+GetSize(),array_+GetSize()+1);
   array_[index] = MappingType(key, value);
   IncreaseSize(1);
   return true;
 }
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { array_[index].first = key; }
-
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &value) { array_[index].second = value; }
 /*
  * Helper method to get the value associated with input "index"(a.k.a array
  * offset)

@@ -220,7 +220,7 @@ auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
   printf("bpm->NewPageGuarded(&page_id_temp);\n");
-  std::lock_guard<std::mutex> lk(latch_);
+  //std::lock_guard<std::mutex> lk(latch_);
   return {this, NewPage(page_id)};
 }
 

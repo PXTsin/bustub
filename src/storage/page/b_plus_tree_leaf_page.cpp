@@ -118,9 +118,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::InsertAt(const KeyType &key, const ValueType &v
   while (comparator(KeyAt(index), key) < 0 && index < GetSize()) {
     ++index;
   }
-  for (int i = GetSize(); i > index; --i) {
-    array_[i] = array_[i - 1];
-  }
+  std::move_backward(array_ + index, array_ + GetSize(), array_ + GetSize() + 1);
   array_[index] = MappingType(key, value);
   IncreaseSize(1);
   return true;

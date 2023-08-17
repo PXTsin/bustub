@@ -66,6 +66,12 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   /**
    *
+   * @param index The index of the value to set. Index must be non-zero.
+   * @param value The new value
+   */
+  void SetValueAt(int index, const ValueType &value);
+  /**
+   *
    * @param value the value to search for
    */
   auto ValueIndex(const ValueType &value) const -> int;

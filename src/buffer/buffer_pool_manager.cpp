@@ -197,25 +197,25 @@ auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
 auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
   printf("bpm->FetchPageBasic(%d);\n", page_id);
+  auto *page=FetchPage(page_id);
   std::lock_guard<std::mutex> lk(latch_);
-  pages_[page_table_[page_id]].pin_count_++;
-  return {this, &pages_[page_table_[page_id]]};
+  return {this, page};
 }
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
   printf("bpm->FetchPageRead(%d);\n", page_id);
+  auto *page=FetchPage(page_id);
   std::lock_guard<std::mutex> lk(latch_);
-  pages_[page_table_[page_id]].RLatch();
-  pages_[page_table_[page_id]].pin_count_++;
-  return {this, &pages_[page_table_[page_id]]};
+  page->RLatch();
+  return {this, page};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
   printf("bpm->FetchPageWrite(%d);\n", page_id);
+  auto *page=FetchPage(page_id);
   std::lock_guard<std::mutex> lk(latch_);
-  pages_[page_table_[page_id]].WLatch();
-  pages_[page_table_[page_id]].pin_count_++;
-  return {this, &pages_[page_table_[page_id]]};
+  page->WLatch();
+  return {this, page};
 }
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {

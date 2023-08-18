@@ -246,7 +246,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     page_tmp->InsertAt(key, value, comparator_);
     /*create new page*/
     page_id_t page_id{};
-    auto page = reinterpret_cast<LeafPage *>(bpm_->NewPage(&page_id)->GetData());
+    auto page_guard=bpm_->NewPageGuarded(&page_id);
+    auto page = reinterpret_cast<LeafPage *>( page_guard.GetDataMut());
     page->Init(leaf_max_size_);
     /*分页成L1和L2*/
     page_tmp->InitData(page_tmp->GetData(), 0, (leaf_max_size_ + 1) / 2);
@@ -262,8 +263,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       page_id_t page_id1 = GetRootPageId();
       page_id_t page_id2 = page_id;
       page_id_t root_page_id{};
-      bpm_->NewPage(&root_page_id);
-      auto root_page = reinterpret_cast<InternalPage *>(bpm_->FetchPageBasic(root_page_id).GetDataMut());
+      auto root_page_guard=bpm_->NewPageGuarded(&root_page_id);
+      auto root_page = reinterpret_cast<InternalPage *>(root_page_guard.GetDataMut());
       root_page->Init(internal_max_size_);
 
       root_page->SetKeyAt(0, page_tmp->KeyAt(0));
@@ -271,12 +272,15 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       root_page->SetValueAt(0, page_id1);
       root_page->SetValueAt(1, page_id2);
       root_page->SetSize(2);
+      root_page_guard.Drop();
+
       auto header_page = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
       header_page->root_page_id_ = root_page_id;
       return true;
     }
     auto parent = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
     auto new_key = page->KeyAt(0);
+    page_guard.Drop();
     /*父页面不需要分页*/
     if (parent->GetSize() < internal_max_size_) {
       parent->InsertAt(new_key, page_id, comparator_);
@@ -288,37 +292,42 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       temp->InitData(parent->GetData(), 0, internal_max_size_);
       temp->InsertAt(new_key, page_id, comparator_);
       /*create new page*/
-      bpm_->NewPage(&page_id);
-      auto page = reinterpret_cast<InternalPage *>(bpm_->FetchPageBasic(page_id).GetDataMut());
+      auto page_guard=bpm_->NewPageGuarded(&page_id);
+      auto page = reinterpret_cast<InternalPage *>(page_guard.GetDataMut());
       page->Init(internal_max_size_);
       /*分页成L1和L2*/
       parent->InitData(temp->GetData(), 0, (internal_max_size_ + 1) / 2);
       page->InitData(temp->GetData(), (internal_max_size_ + 1) / 2, internal_max_size_ + 1);
       free(temp);
 
+
+      auto old_key=parent->KeyAt(0);
+      new_key = page->KeyAt(0);
+
       ctx.write_set_.pop_back();
+      page_guard.Drop();
 
       /*根页面分裂，创建新的根节点*/
       if (ctx.write_set_.empty()) {
         page_id_t page_id1 = GetRootPageId();
         page_id_t page_id2 = page_id;
         page_id_t root_page_id{};
-        bpm_->NewPage(&root_page_id);
-        auto root_page = reinterpret_cast<InternalPage *>(bpm_->FetchPageBasic(root_page_id).GetDataMut());
+        auto root_page_guard=bpm_->NewPageGuarded(&root_page_id);
+        auto root_page = reinterpret_cast<InternalPage *>(root_page_guard.GetDataMut());
         root_page->Init(internal_max_size_);
 
-        root_page->SetKeyAt(0, parent->KeyAt(0));
-        root_page->SetKeyAt(1, page->KeyAt(0));
+        root_page->SetKeyAt(0, old_key);
+        root_page->SetKeyAt(1, new_key);
         root_page->SetValueAt(0, page_id1);
         root_page->SetValueAt(1, page_id2);
         root_page->SetSize(2);
+        root_page_guard.Drop();
 
         auto header_page = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
         header_page->root_page_id_ = root_page_id;
         return true;
       }
       parent = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
-      new_key = page->KeyAt(0);
       if (parent->GetSize() < internal_max_size_) {
         parent->InsertAt(new_key, page_id, comparator_);
         return true;

@@ -17,8 +17,8 @@ BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {
 }
 
 void BasicPageGuard::Drop() {
-  // printf("BasicPageGuard::Drop();\n");
   if (page_ != nullptr) {
+    printf("BasicPageGuard::Drop();/*page_id=%d*/\n", page_->GetPageId());
     bpm_->UnpinPage(page_->GetPageId(), is_dirty_);
   }
   bpm_ = nullptr;

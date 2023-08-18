@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <optional>
@@ -228,6 +229,7 @@ auto BPLUSTREE_TYPE::Split(N *node, page_id_t *page_id) -> N * {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
+  printf("tree.Insert()");
   if (IsEmpty()) {
     StartNewTree(key, value);
     return true;

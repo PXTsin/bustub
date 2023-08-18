@@ -24,6 +24,24 @@
 namespace bustub {
 
 // NOLINTNEXTLINE
+TEST(PageGuardTest, BPMTest) {  // DISABLED_
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 5;
+  const size_t k = 2;
+
+  auto disk_manager = std::make_shared<DiskManagerUnlimitedMemory>();
+  auto bpm = std::make_shared<BufferPoolManager>(buffer_pool_size, disk_manager.get(), k);
+
+  page_id_t page_id_temp;
+  auto page_guard = bpm->NewPageGuarded(&page_id_temp);
+  page_guard=bpm->FetchPageBasic(page_id_temp);
+  auto page=bpm->FetchPage(page_id_temp);
+  EXPECT_EQ(2, page->GetPinCount());
+
+  // Shutdown the disk manager and remove the temporary file we created.
+  disk_manager->ShutDown();
+}
+
 TEST(PageGuardTest, SampleTest) {  // DISABLED_
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 5;

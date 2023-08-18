@@ -84,7 +84,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(const KeyType &key, const ValueTyp
   while (comparator(KeyAt(index), key) <= 0 && index < GetSize()) {
     ++index;
   }
-  std::move_backward(array_+index,array_+GetSize(),array_+GetSize()+1);
+  std::move_backward(array_ + index, array_ + GetSize(), array_ + GetSize() + 1);
   array_[index] = MappingType(key, value);
   IncreaseSize(1);
   return true;

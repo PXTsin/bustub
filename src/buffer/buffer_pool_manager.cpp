@@ -34,7 +34,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
   //     "exception line in `buffer_pool_manager.cpp`.");
 
   // we allocate a consecutive memory space for the buffer pool
-  printf("bpm->BufferPoolManager(%zu,%zu);\n", pool_size, replacer_k);
+  // printf("bpm->BufferPoolManager(%zu,%zu);\n", pool_size, replacer_k);
   pages_ = new Page[pool_size_];
   replacer_ = std::make_unique<LRUKReplacer>(pool_size, replacer_k);
 
@@ -46,7 +46,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager *disk_manager
 
 BufferPoolManager::~BufferPoolManager() { delete[] pages_; }
 auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
-  printf("bpm->NewPage(&page_id_temp);\n");
+  // printf("bpm->NewPage(&page_id_temp);\n");
   std::lock_guard<std::mutex> lk(latch_);
   frame_id_t fid;
   page_id_t pid;
@@ -90,7 +90,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
-  printf("bpm->FetchPage(%d);\n", page_id);
+  // printf("bpm->FetchPage(%d);\n", page_id);
   std::lock_guard<std::mutex> lk(latch_);
   frame_id_t fid = 0;
   if (page_table_.count(page_id) > 0) {
@@ -134,7 +134,7 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 }
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
-  printf("bpm->UnpinPage(%d,%d);\n", page_id, static_cast<int>(is_dirty));
+  // printf("bpm->UnpinPage(%d,%d);\n", page_id, static_cast<int>(is_dirty));
   std::lock_guard<std::mutex> lk(latch_);
   frame_id_t fid = page_table_[page_id];
   if (page_table_.count(page_id) == 0 || pages_[fid].GetPinCount() <= 0) {
@@ -150,7 +150,7 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
 }
 
 auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
-  printf("bpm->FlushPage(%d);\n", page_id);
+  // printf("bpm->FlushPage(%d);\n", page_id);
   std::lock_guard<std::mutex> lk(latch_);
   if (page_table_.count(page_id) == 0) {
     return false;
@@ -162,7 +162,7 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
 }
 
 void BufferPoolManager::FlushAllPages() {
-  printf("bpm->FlushAllPages();\n");
+  // printf("bpm->FlushAllPages();\n");
   std::lock_guard<std::mutex> lk(latch_);
   for (auto &e : page_table_) {
     disk_manager_->WritePage(e.first, pages_[e.second].GetData());
@@ -171,7 +171,7 @@ void BufferPoolManager::FlushAllPages() {
 }
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
-  printf("bpm->DeletePage(%d);\n", page_id);
+  // printf("bpm->DeletePage(%d);\n", page_id);
   std::lock_guard<std::mutex> lk(latch_);
   if (page_table_.count(page_id) == 0) {
     return true;
@@ -196,23 +196,23 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
 auto BufferPoolManager::AllocatePage() -> page_id_t { return next_page_id_++; }
 
 auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
-  printf("bpm->FetchPageBasic(%d);\n", page_id);
-  auto *page=FetchPage(page_id);
+  // printf("bpm->FetchPageBasic(%d);\n", page_id);
+  auto *page = FetchPage(page_id);
   std::lock_guard<std::mutex> lk(latch_);
   return {this, page};
 }
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
-  printf("bpm->FetchPageRead(%d);\n", page_id);
-  auto *page=FetchPage(page_id);
+  // printf("bpm->FetchPageRead(%d);\n", page_id);
+  auto *page = FetchPage(page_id);
   std::lock_guard<std::mutex> lk(latch_);
   page->RLatch();
   return {this, page};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
-  printf("bpm->FetchPageWrite(%d);\n", page_id);
-  auto *page=FetchPage(page_id);
+  // printf("bpm->FetchPageWrite(%d);\n", page_id);
+  auto *page = FetchPage(page_id);
   std::lock_guard<std::mutex> lk(latch_);
   page->WLatch();
   return {this, page};
@@ -220,7 +220,7 @@ auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
   printf("bpm->NewPageGuarded(&page_id_temp);\n");
-  //std::lock_guard<std::mutex> lk(latch_);
+  // std::lock_guard<std::mutex> lk(latch_);
   return {this, NewPage(page_id)};
 }
 

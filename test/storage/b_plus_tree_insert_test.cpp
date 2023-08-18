@@ -145,7 +145,6 @@ TEST(BPlusTreeTests, InsertTest2_1) {
     tree.Dump2Name();
   }
 
-
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();

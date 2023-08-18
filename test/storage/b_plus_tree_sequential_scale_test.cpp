@@ -61,7 +61,7 @@ TEST(BPlusTreeTests, ScaleTest) {  // NOLINT
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
-    //tree.Dump2Name();
+    // tree.Dump2Name();
   }
   std::vector<RID> rids;
   for (auto key : keys) {

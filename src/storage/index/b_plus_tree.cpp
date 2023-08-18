@@ -246,8 +246,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     page_tmp->InsertAt(key, value, comparator_);
     /*create new page*/
     page_id_t page_id{};
-    auto page_guard=bpm_->NewPageGuarded(&page_id);
-    auto page = reinterpret_cast<LeafPage *>( page_guard.GetDataMut());
+    auto page_guard = bpm_->NewPageGuarded(&page_id);
+    auto page = reinterpret_cast<LeafPage *>(page_guard.GetDataMut());
     page->Init(leaf_max_size_);
     /*分页成L1和L2*/
     page_tmp->InitData(page_tmp->GetData(), 0, (leaf_max_size_ + 1) / 2);
@@ -263,7 +263,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       page_id_t page_id1 = GetRootPageId();
       page_id_t page_id2 = page_id;
       page_id_t root_page_id{};
-      auto root_page_guard=bpm_->NewPageGuarded(&root_page_id);
+      auto root_page_guard = bpm_->NewPageGuarded(&root_page_id);
       auto root_page = reinterpret_cast<InternalPage *>(root_page_guard.GetDataMut());
       root_page->Init(internal_max_size_);
 
@@ -292,7 +292,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       temp->InitData(parent->GetData(), 0, internal_max_size_);
       temp->InsertAt(new_key, page_id, comparator_);
       /*create new page*/
-      auto page_guard=bpm_->NewPageGuarded(&page_id);
+      auto page_guard = bpm_->NewPageGuarded(&page_id);
       auto page = reinterpret_cast<InternalPage *>(page_guard.GetDataMut());
       page->Init(internal_max_size_);
       /*分页成L1和L2*/
@@ -300,8 +300,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       page->InitData(temp->GetData(), (internal_max_size_ + 1) / 2, internal_max_size_ + 1);
       free(temp);
 
-
-      auto old_key=parent->KeyAt(0);
+      auto old_key = parent->KeyAt(0);
       new_key = page->KeyAt(0);
 
       ctx.write_set_.pop_back();
@@ -312,7 +311,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         page_id_t page_id1 = GetRootPageId();
         page_id_t page_id2 = page_id;
         page_id_t root_page_id{};
-        auto root_page_guard=bpm_->NewPageGuarded(&root_page_id);
+        auto root_page_guard = bpm_->NewPageGuarded(&root_page_id);
         auto root_page = reinterpret_cast<InternalPage *>(root_page_guard.GetDataMut());
         root_page->Init(internal_max_size_);
 

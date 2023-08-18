@@ -25,7 +25,7 @@
 namespace bustub {
 
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {
-  printf("LRUKReplacer\n");
+  // printf("LRUKReplacer\n");
 }
 LRUKReplacer::~LRUKReplacer() { curr_size_ = 0; }
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {

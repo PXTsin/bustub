@@ -243,10 +243,6 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   }
   /*分页*/
   if (page_tmp->GetSize() >= leaf_max_size_ - 1) {
-    /*开辟新空间插入数据*/
-    // auto temp = static_cast<LeafPage *>(malloc(BUSTUB_PAGE_SIZE + sizeof(MappingType)));
-    // temp->InitData(page_tmp->GetData(), 0, leaf_max_size_ - 1);
-    // temp->InsertAt(key, value, comparator_);
     page_tmp->InsertAt(key, value, comparator_);
     /*create new page*/
     page_id_t page_id{};
@@ -255,7 +251,6 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     /*分页成L1和L2*/
     page_tmp->InitData(page_tmp->GetData(), 0, (leaf_max_size_ + 1) / 2);
     page->InitData(page_tmp->GetData(), (leaf_max_size_ + 1) / 2, leaf_max_size_);
-    auto new_key=page->KeyAt(0);
     /*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!l2.next_page_id=l1.next_page_id,l1.next_page_id=l2*/
     page->SetNextPageId(page_tmp->GetNextPageId());
     page_tmp->SetNextPageId(page_id);
@@ -276,17 +271,15 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       root_page->SetValueAt(0, page_id1);
       root_page->SetValueAt(1, page_id2);
       root_page->SetSize(2);
-
-      // root_page->InsertAt(page_tmp->KeyAt(0), page_id1, comparator_);
-      // root_page->InsertAt(page->KeyAt(0), page_id2, comparator_);
       auto header_page = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
       header_page->root_page_id_ = root_page_id;
       return true;
     }
     auto parent = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
+    auto new_key = page->KeyAt(0);
     /*父页面不需要分页*/
     if (parent->GetSize() < internal_max_size_) {
-      parent->InsertAt(page->KeyAt(0), page_id, comparator_);
+      parent->InsertAt(new_key, page_id, comparator_);
       return true;
     }
     /*父页面要分页*/
@@ -320,14 +313,16 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         root_page->SetValueAt(1, page_id2);
         root_page->SetSize(2);
 
-        // root_page->InsertAt(parent->KeyAt(0), page_id1, comparator_);
-        // root_page->InsertAt(page->KeyAt(0), page_id2, comparator_);
         auto header_page = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
         header_page->root_page_id_ = root_page_id;
-        break;
+        return true;
       }
       parent = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
-      parent->InsertAt(page->KeyAt(0), page_id, comparator_);
+      new_key = page->KeyAt(0);
+      if (parent->GetSize() < internal_max_size_) {
+        parent->InsertAt(new_key, page_id, comparator_);
+        return true;
+      }
     }
   }
 

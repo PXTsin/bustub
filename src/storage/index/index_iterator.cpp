@@ -49,6 +49,7 @@ auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
   page_id_ = leaf_page_->GetNextPageId();
   page_index_ = 0;
   if (page_id_ != INVALID_PAGE_ID) {
+    page_guard_.Drop();
     page_guard_ = bpm_->FetchPageBasic(page_id_);
     leaf_page_ = page_guard_.AsMut<B_PLUS_TREE_LEAF_PAGE_TYPE>();
   }

@@ -33,9 +33,22 @@ TEST(PageGuardTest, BPMTest) {  // DISABLED_
   auto bpm = std::make_shared<BufferPoolManager>(buffer_pool_size, disk_manager.get(), k);
 
   page_id_t page_id_temp;
-  auto page_guard = bpm->NewPageGuarded(&page_id_temp);
-  page_guard=bpm->FetchPageBasic(page_id_temp);
-  auto page=bpm->FetchPage(page_id_temp);
+  auto page_guard1 = bpm->NewPageGuarded(&page_id_temp);
+  page_guard1.Drop();
+
+  auto page_guard2 = bpm->FetchPageBasic(page_id_temp);
+  page_guard2.Drop();
+
+  auto page_guard3 = bpm->FetchPageRead(page_id_temp);
+  page_guard3.Drop();
+
+  auto page_guard4 = bpm->FetchPageWrite(page_id_temp);
+  page_guard4.Drop();
+
+  auto page_guard6 = bpm->FetchPageBasic(page_id_temp);
+
+  auto page = bpm->FetchPage(page_id_temp);
+
   EXPECT_EQ(2, page->GetPinCount());
 
   // Shutdown the disk manager and remove the temporary file we created.

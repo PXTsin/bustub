@@ -51,6 +51,42 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InitData(MappingType *arr, int l, int h) {
     array_[i] = arr[l + i];
   }
 }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::FindKeyIndex(const KeyType &key, const KeyComparator &comparator) -> int {
+  int l = 0;
+  int h = GetSize();
+  int i = (l + h) / 2;
+  for (; comparator(key, KeyAt(i)) != 0;) {
+    if (i == h || i == l) {
+      i = -1;
+      break;
+    }
+    if (comparator(key, KeyAt(i)) > 0) {
+      l = i;
+    } else {
+      h = i;
+    }
+    i = (l + h) / 2;
+  }
+  return i;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator &comparator) -> bool {
+  int index = 0;
+  printf("comparator(KeyAt(index), key)=%d\n", comparator(KeyAt(index), key));
+  while (comparator(KeyAt(index), key) < 0 && index < GetSize()) {
+    ++index;
+  }
+  if (comparator(KeyAt(index), key) != 0) {
+    return false;
+  }
+  std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
+  IncreaseSize(-1);
+  return true;
+}
+
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(const KeyType &key, const ValueType &value,
                                               const KeyComparator &comparator) -> bool {

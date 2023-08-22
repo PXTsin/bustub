@@ -14,6 +14,7 @@
  */
 #pragma once
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/page_guard.h"
 
 namespace bustub {
 
@@ -23,7 +24,7 @@ INDEX_TEMPLATE_ARGUMENTS
 class IndexIterator {
  public:
   // you may define your own constructor based on your member variables
-  IndexIterator();
+  IndexIterator(BufferPoolManager *bpm, page_id_t page_id, int page_index);
   ~IndexIterator();  // NOLINT
 
   auto IsEnd() -> bool;
@@ -32,12 +33,19 @@ class IndexIterator {
 
   auto operator++() -> IndexIterator &;
 
-  auto operator==(const IndexIterator &itr) const -> bool { throw std::runtime_error("unimplemented"); }
+  auto operator==(const IndexIterator &itr) const -> bool;
 
-  auto operator!=(const IndexIterator &itr) const -> bool { throw std::runtime_error("unimplemented"); }
+  auto operator!=(const IndexIterator &itr) const -> bool;
 
  private:
   // add your own private member variables here
+  // 当前迭代器所属的page_id
+  page_id_t page_id_ = INVALID_PAGE_ID;
+  BasicPageGuard page_guard_;
+  B_PLUS_TREE_LEAF_PAGE_TYPE *leaf_page_ = nullptr;
+  // 在页中的位置
+  int page_index_ = 0;
+  BufferPoolManager *bpm_ = nullptr;
 };
 
 }  // namespace bustub

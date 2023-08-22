@@ -49,8 +49,12 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   void InitData(MappingType *arr, int l, int h);
   auto GetData() -> MappingType *;
+  /*-1表示key不存在*/
+  auto FindKeyIndex(const KeyType &key, const KeyComparator &comparator) -> int;
   /*不会导致分页的插入*/
   auto InsertAt(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> bool;
+
+  auto Remove(const KeyType &key, const KeyComparator &comparator) -> bool;
   /**
    * @param index The index of the key to get. Index must be non-zero.
    * @return Key at index

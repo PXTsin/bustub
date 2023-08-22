@@ -120,6 +120,7 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   leaf->Init(leaf_max_size_);
   leaf->InsertAt(key, value, comparator_);
   leaf->SetNextPageId(INVALID_PAGE_ID);
+  leaf->SetFrontPageId(INVALID_PAGE_ID);
   /*set root_page_id_*/
   auto page2 = reinterpret_cast<BPlusTreeHeaderPage *>(bpm_->FetchPageBasic(header_page_id_).GetDataMut());
   page2->root_page_id_ = page_id;
@@ -256,6 +257,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     page->InitData(page_tmp->GetData(), (leaf_max_size_ + 1) / 2, leaf_max_size_);
     /*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!l2.next_page_id=l1.next_page_id,l1.next_page_id=l2*/
     page->SetNextPageId(page_tmp->GetNextPageId());
+    page->SetFrontPageId(ctx.write_set_.back().AsMut<Page>()->GetPageId());
     page_tmp->SetNextPageId(page_id);
 
     /*将L2第一个key插入到父节点,若父节点满了，则父节点分页*/
@@ -338,7 +340,74 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
 
   return true;
 }
+INDEX_TEMPLATE_ARGUMENTS
+void BPLUSTREE_TYPE::HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_page, InternalPage *parent,
+                                Context *ctx) {
+  /*合并*/
+  bool type = left_page->IsLeafPage();
+  if (type) {
+    auto *left = reinterpret_cast<LeafPage *>(left_page);
+    auto *right = reinterpret_cast<LeafPage *>(right_page);
+    auto key = right->KeyAt(0);
+    std::move(right->GetData(), right->GetData() + right->GetSize(), left->GetData() + left->GetSize());
+    left->IncreaseSize(right->GetSize());
+    parent->Remove(key, comparator_);
+    right->Init();
+  } else {
+    auto *left = reinterpret_cast<InternalPage *>(left_page);
+    auto *right = reinterpret_cast<InternalPage *>(right_page);
+    auto key = right->KeyAt(0);
+    std::move(right->GetData(), right->GetData() + right->GetSize(), left->GetData() + left->GetSize());
+    left->IncreaseSize(right->GetSize());
+    parent->Remove(key, comparator_);
+    right->Init();
+  }
 
+  if (parent->GetSize() >= parent->GetMinSize() || ctx->write_set_.size() == 1) {
+    return;
+  }
+
+  ctx->write_set_.pop_back();
+  auto new_parent = ctx->write_set_.back().AsMut<InternalPage>();
+  int index = new_parent->FindKeyIndex(parent->KeyAt(0), comparator_);
+  /*有左兄弟节点*/
+  if (index > 0) {
+    auto left_id = new_parent->ValueAt(index - 1);
+    auto left_page_guard = bpm_->FetchPageBasic(left_id);
+    auto new_left_page = reinterpret_cast<InternalPage *>(left_page_guard.GetDataMut());
+    /*可以借*/
+    if (new_left_page->GetSize() > new_left_page->GetMinSize()) {
+      auto i = new_left_page->GetSize() - 1;
+      auto new_key = new_left_page->KeyAt(i);
+      auto new_value = new_left_page->ValueAt(i);
+      parent->InsertAt(new_key, new_value, comparator_);
+      new_left_page->Remove(new_key, comparator_);
+      /*更新当前节点在父节点中的键值对*/
+      auto in = new_parent->FindKeyIndex(parent->KeyAt(1), comparator_);
+      new_parent->SetKeyAt(in, new_key);
+      return;
+    }
+    HelpRemove(new_left_page, parent, new_parent, ctx);
+  }
+  /*有右兄弟节点*/
+  if (index < parent->GetSize() - 1) {
+    auto right_id = new_parent->ValueAt(index + 1);
+    auto right_page_guard = bpm_->FetchPageBasic(right_id);
+    auto new_right_page = reinterpret_cast<InternalPage *>(right_page_guard.GetDataMut());
+    /*可以借*/
+    if (new_right_page->GetSize() > new_right_page->GetMinSize()) {
+      auto new_key = new_right_page->KeyAt(0);
+      auto new_value = new_right_page->ValueAt(0);
+      parent->InsertAt(new_key, new_value, comparator_);
+      new_right_page->Remove(new_key, comparator_);
+      /*更新right_page即右兄弟节点在父节点中的键值对*/
+      auto in = new_parent->FindKeyIndex(new_key, comparator_);
+      new_parent->SetKeyAt(in, new_right_page->KeyAt(0));
+      return;
+    }
+    HelpRemove(parent, new_right_page, new_parent, ctx);
+  }
+}
 /*****************************************************************************
  * REMOVE
  *****************************************************************************/
@@ -353,7 +422,65 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
   // Declaration of context instance.
   Context ctx;
-  (void)ctx;
+  GetPageLeaf(key, ctx);
+  auto page = ctx.write_set_.back().AsMut<LeafPage>();
+  auto key_tmp = page->KeyAt(0);
+  page->Remove(key, comparator_);
+  /*根节点*/
+  if (ctx.write_set_.size() == 1) {
+    return;
+  }
+  /*若删除的是首记录，则更新父节点对应的key*/
+  bool is_head = static_cast<bool>(comparator_(key_tmp, page->KeyAt(0)));
+  ctx.write_set_.pop_back();
+  auto parent = ctx.write_set_.back().AsMut<InternalPage>();
+  int index = parent->FindKeyIndex(key_tmp, comparator_);
+  if (is_head) {
+    parent->KeyAt(index) = page->KeyAt(0);
+  }
+
+  /*不需要借或合并*/
+  if (page->GetSize() >= page->GetMinSize()) {
+    return;
+  }
+
+  /*有左兄弟节点*/
+  if (index > 0) {
+    auto left_id = parent->ValueAt(index - 1);
+    auto left_page_guard = bpm_->FetchPageBasic(left_id);
+    auto left_page = reinterpret_cast<LeafPage *>(left_page_guard.GetDataMut());
+    /*可以借*/
+    if (left_page->GetSize() > left_page->GetMinSize()) {
+      auto i = left_page->GetSize() - 1;
+      auto new_key = left_page->KeyAt(i);
+      auto new_value = left_page->ValueAt(i);
+      page->InsertAt(new_key, new_value, comparator_);
+      left_page->Remove(new_key, comparator_);
+      /*更新当前节点在父节点中的键值对*/
+      auto in = parent->FindKeyIndex(page->KeyAt(1), comparator_);
+      parent->SetKeyAt(in, new_key);
+      return;
+    }
+    HelpRemove(left_page, page, parent, &ctx);
+  }
+  /*有右兄弟节点*/
+  if (index < page->GetSize() - 1) {
+    auto right_id = parent->ValueAt(index + 1);
+    auto right_page_guard = bpm_->FetchPageBasic(right_id);
+    auto right_page = reinterpret_cast<LeafPage *>(right_page_guard.GetDataMut());
+    /*可以借*/
+    if (right_page->GetSize() > right_page->GetMinSize()) {
+      auto new_key = right_page->KeyAt(0);
+      auto new_value = right_page->ValueAt(0);
+      page->InsertAt(new_key, new_value, comparator_);
+      right_page->Remove(new_key, comparator_);
+      /*更新right_page即右兄弟节点在父节点中的键值对*/
+      auto in = parent->FindKeyIndex(new_key, comparator_);
+      parent->SetKeyAt(in, right_page->KeyAt(0));
+      return;
+    }
+    HelpRemove(page, right_page, parent, &ctx);
+  }
 }
 
 /*****************************************************************************
@@ -365,7 +492,19 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
+  auto root_page_guard = bpm_->FetchPageBasic(GetRootPageId());
+  auto root_page = reinterpret_cast<BPlusTreePage *>(root_page_guard.GetDataMut());
+  page_id_t page_id = INVALID_PAGE_ID;
+  if (root_page->IsLeafPage()) {
+    page_id = GetRootPageId();
+  } else {
+    auto root_page_tmp = reinterpret_cast<InternalPage *>(root_page);
+    Context ctx;
+    page_id = GetPageLeaf(root_page_tmp->KeyAt(0), ctx);
+  }
+  return INDEXITERATOR_TYPE(bpm_, page_id, 0);
+}
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key
@@ -373,7 +512,13 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE()
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
+  Context ctx;
+  page_id_t page_id = GetPageLeaf(key, ctx);
+  auto leaf_page = ctx.write_set_.back().AsMut<LeafPage>();
+  int index = leaf_page->FindKeyIndex(key, comparator_);
+  return INDEXITERATOR_TYPE(bpm_, page_id, index);
+}
 
 /*
  * Input parameter is void, construct an index iterator representing the end
@@ -381,7 +526,7 @@ auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE { return IN
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(bpm_, INVALID_PAGE_ID, 0); }
 
 /**
  * @return Page id of the root of this tree

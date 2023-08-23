@@ -142,7 +142,8 @@ auto BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   GetPageLeaf(key, ctx);
   auto *node = ctx.write_set_.back().AsMut<LeafPage>();
   auto size = node->GetSize();
-  auto new_size = node->InsertAt(key, value, comparator_);
+  node->InsertAt(key, value, comparator_);
+  auto new_size = node->GetSize();
   /*key相同*/
   if (new_size == size) {
     return false;
@@ -238,7 +239,6 @@ auto BPLUSTREE_TYPE::Split(N *node, page_id_t *page_id) -> N * {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
-  // std::lock_guard<std::mutex> lg(latch_);
   if (IsEmpty()) {
     StartNewTree(key, value);
     return true;

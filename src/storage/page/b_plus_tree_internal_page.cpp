@@ -75,7 +75,6 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::FindKeyIndex(const KeyType &key, const KeyC
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator &comparator) -> bool {
   int index = 0;
-  printf("comparator(KeyAt(index), key)=%d\n", comparator(KeyAt(index), key));
   while (comparator(KeyAt(index), key) < 0 && index < GetSize()) {
     ++index;
   }
@@ -90,33 +89,15 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(const KeyType &key, const KeyCompara
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(const KeyType &key, const ValueType &value,
                                               const KeyComparator &comparator) -> bool {
-  // int l = 0;
-  // int h = GetSize();
-  // int index = (l + h) / 2;
-  // for (; comparator(key, KeyAt(index)) != 0;) {
-  //   if (index == h || index == l) {
-  //     index++;
-  //     break;
-  //   }
-  //   if (comparator(key, KeyAt(index)) > 0) {
-  //     l = index;
-  //   } else {
-  //     h = index;
-  //   }
-  //   index = (l + h) / 2;
+  // if (FindKeyIndex(key, comparator) != -1) {
+  //   return false;
   // }
-  // for(int i=GetSize();i>index;--i){
-  //   array_[i]=array_[i-1];
-  // }
-  // array_[index]=MappingType(key,value);
-  // SetSize(GetSize()+1);
   if (GetSize() == 0) {
     array_[0] = MappingType(key, value);
     IncreaseSize(1);
     return true;
   }
   int index = 1;
-  printf("comparator(KeyAt(index), key)=%d\n", comparator(KeyAt(index), key));
   while (comparator(KeyAt(index), key) <= 0 && index < GetSize()) {
     ++index;
   }

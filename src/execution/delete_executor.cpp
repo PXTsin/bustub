@@ -37,10 +37,10 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   }
   Tuple to_delete_tuple;
   RID emit_rid;
-  TupleMeta to_delete_tuple_meta{};
-  to_delete_tuple_meta.is_deleted_ = true;
   int32_t delete_count = 0;
   while (child_executor_->Next(&to_delete_tuple, &emit_rid)) {
+    auto to_delete_tuple_meta = table_info_->table_->GetTupleMeta(emit_rid);
+    to_delete_tuple_meta.is_deleted_ = true;
     table_info_->table_->UpdateTupleMeta(to_delete_tuple_meta, emit_rid);
     for (auto index : table_indexes_) {
       index->index_->DeleteEntry(to_delete_tuple, emit_rid, exec_ctx_->GetTransaction());

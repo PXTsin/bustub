@@ -29,6 +29,14 @@ auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   if (table_iter_.IsEnd()) {
     return false;
   }
+  auto meta = table_iter_.GetTuple().first;
+  while (!table_iter_.IsEnd() && meta.is_deleted_) {
+    ++table_iter_;
+    if (table_iter_.IsEnd()) {
+      return false;
+    }
+    meta = table_iter_.GetTuple().first;
+  }
   *tuple = table_iter_.GetTuple().second;
   *rid = table_iter_.GetRID();
   ++table_iter_;

@@ -20,7 +20,7 @@ IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanP
       tree_(dynamic_cast<BPlusTreeIndexForTwoIntegerColumn *>(index_info_->index_.get())),
       iter_(tree_->GetBeginIterator()) {}
 
-void IndexScanExecutor::Init() { throw NotImplementedException("IndexScanExecutor is not implemented"); }
+void IndexScanExecutor::Init() {}
 
 auto IndexScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   if (iter_ == tree_->GetEndIterator()) {
@@ -28,7 +28,7 @@ auto IndexScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   }
   *rid = (*iter_).second;
   auto result = table_info_->table_->GetTuple(*rid);
-  *tuple=result.second;
+  *tuple = result.second;
   ++iter_;
   return true;
 }

@@ -11,6 +11,7 @@
 #include "common/exception.h"
 #include "common/logger.h"
 #include "common/rid.h"
+#include "fmt/core.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/b_plus_tree_header_page.h"
 #include "storage/page/b_plus_tree_internal_page.h"
@@ -215,7 +216,7 @@ auto BPLUSTREE_TYPE::Split(N *node, page_id_t *page_id) -> N * {
   if (page_tmp == nullptr) {
     throw Exception(ExceptionType::OUT_OF_MEMORY, "Cannot allocate new page");
   }
-  auto *page = reinterpret_cast<N *>(page_tmp->GetData());
+  auto *page = reinterpret_cast<N *>(page_tmp);
   if (node->IsLeafPage()) {
     page->Init(leaf_max_size_);
     page->InitData(node->GetData(), (leaf_max_size_ + 1) / 2, leaf_max_size_);
@@ -238,7 +239,17 @@ auto BPLUSTREE_TYPE::Split(N *node, page_id_t *page_id) -> N * {
  * keys return false, otherwise return true.
  */
 INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::Insert2(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
+  if (IsEmpty()) {
+    StartNewTree(key, value);
+    return true;
+  }
+  return InsertIntoLeaf(key, value, txn);
+}
+INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
+  // std::lock_guard<std::mutex> lg(latch_);
+  // Print(bpm_);
   if (IsEmpty()) {
     StartNewTree(key, value);
     return true;
@@ -433,6 +444,8 @@ void BPLUSTREE_TYPE::HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_p
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
   // Declaration of context instance.
+  // std::lock_guard<std::mutex> lg(latch_);
+  // Print(bpm_);
   Context ctx;
   GetPageLeaf(key, ctx);
   auto page = ctx.write_set_.back().AsMut<LeafPage>();

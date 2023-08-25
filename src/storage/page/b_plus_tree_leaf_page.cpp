@@ -12,15 +12,17 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/rid.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
-
+#define P2_DEBUG
 /*****************************************************************************
  * HELPER METHODS AND UTILITIES
  *****************************************************************************/
@@ -97,6 +99,9 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator 
   if (comparator(KeyAt(index), key) != 0) {
     return false;
   }
+#ifdef P2_DEBUG
+  fmt::print("Remove({})\n", key.ToString());
+#endif
   std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
   IncreaseSize(-1);
   return true;
@@ -108,6 +113,9 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::InsertAt(const KeyType &key, const ValueType &v
   if (FindKeyIndex(key, comparator) != -1) {
     return false;
   }
+#ifdef P2_DEBUG
+  fmt::print("Insert({})\n", key.ToString());
+#endif
   if (GetSize() == 0) {
     array_[0] = MappingType(key, value);
     IncreaseSize(1);

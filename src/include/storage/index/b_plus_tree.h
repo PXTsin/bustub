@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <deque>
 #include <iostream>
+#include <mutex>  // NOLINT
 #include <optional>
 #include <queue>
 #include <shared_mutex>
@@ -89,6 +90,8 @@ class BPlusTree {
   // Insert a key-value pair into this B+ tree.
   auto Insert(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
 
+  auto Insert2(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
+
   void HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_page, InternalPage *parent, Context *ctx);
   // Remove a key and its value from this B+ tree.
   void Remove(const KeyType &key, Transaction *txn);
@@ -146,6 +149,7 @@ class BPlusTree {
   auto ToPrintableBPlusTree(page_id_t root_id) -> PrintableBPlusTree;
 
   // member variable
+  std::mutex latch_;  // NOLINT
   std::string index_name_;
   BufferPoolManager *bpm_;
   KeyComparator comparator_;

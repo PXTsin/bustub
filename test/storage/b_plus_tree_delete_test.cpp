@@ -167,13 +167,13 @@ TEST(BPlusTreeTests, DeleteTest3) {  // BPlusTreeTestsCP2.DeleteTest1
   page_id_t page_id;
   auto header_page = bpm->NewPage(&page_id);
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", header_page->GetPageId(), bpm, comparator, 2, 3);
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", header_page->GetPageId(), bpm, comparator, 3, 5);
   GenericKey<8> index_key;
   RID rid;
   // create transaction
   auto *transaction = new Transaction(0);
 
-  std::vector<int64_t> keys = {1, 2, 3, 4, 5};
+  std::vector<int64_t> keys = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
@@ -186,15 +186,23 @@ TEST(BPlusTreeTests, DeleteTest3) {  // BPlusTreeTestsCP2.DeleteTest1
   tree.Remove(index_key, transaction);
   tree.Dump2Name();
 
-  index_key.SetFromInteger(keys[4]);
-  tree.Remove(index_key, transaction);
-  tree.Dump2Name();
-
   index_key.SetFromInteger(keys[2]);
   tree.Remove(index_key, transaction);
   tree.Dump2Name();
 
-  index_key.SetFromInteger(keys[3]);
+  index_key.SetFromInteger(keys[4]);
+  tree.Remove(index_key, transaction);
+  tree.Dump2Name();
+
+  index_key.SetFromInteger(keys[3]);  //
+  tree.Remove(index_key, transaction);
+  tree.Dump2Name();
+
+  index_key.SetFromInteger(keys[1]);
+  tree.Remove(index_key, transaction);
+  tree.Dump2Name();
+
+  index_key.SetFromInteger(keys[5]);
   tree.Remove(index_key, transaction);
   tree.Dump2Name();
 

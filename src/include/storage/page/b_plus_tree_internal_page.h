@@ -54,6 +54,8 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   /*不会导致分页的插入*/
   auto InsertAt(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> bool;
 
+  auto RemoveByIndex(int index, const KeyComparator &comparator) -> bool;
+
   auto Remove(const KeyType &key, const KeyComparator &comparator) -> bool;
   /**
    * @param index The index of the key to get. Index must be non-zero.

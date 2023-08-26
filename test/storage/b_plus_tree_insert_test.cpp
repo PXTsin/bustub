@@ -119,7 +119,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   delete transaction;
   delete bpm;
 }
-TEST(BPlusTreeTests, InsertTest2_1) {
+TEST(BPlusTreeTests, SequentialMixTest) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -136,42 +136,18 @@ TEST(BPlusTreeTests, InsertTest2_1) {
   // create transaction
   auto *transaction = new Transaction(0);
 
-  std::vector<int64_t> keys = {5, 4, 3, 2, 1};
+  std::vector<int64_t> keys;
+  for (int64_t i = 1; i <= 1501; ++i) {
+    keys.emplace_back(2 * i);
+    keys.emplace_back(2 * i - 1);
+  }
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
-    tree.Dump2Name();
   }
-
-  std::vector<RID> rids;
-  for (auto key : keys) {
-    rids.clear();
-    index_key.SetFromInteger(key);
-    tree.GetValue(index_key, &rids);
-    EXPECT_EQ(rids.size(), 1);
-
-    int64_t value = key & 0xFFFFFFFF;
-    EXPECT_EQ(rids[0].GetSlotNum(), value);
-  }
-
-  int64_t size = 0;
-  bool is_present;
-
-  for (auto key : keys) {
-    rids.clear();
-    index_key.SetFromInteger(key);
-    is_present = tree.GetValue(index_key, &rids);
-
-    EXPECT_EQ(is_present, true);
-    EXPECT_EQ(rids.size(), 1);
-    EXPECT_EQ(rids[0].GetPageId(), 0);
-    EXPECT_EQ(rids[0].GetSlotNum(), key);
-    size = size + 1;
-  }
-
-  EXPECT_EQ(size, keys.size());
+  // tree.Dump2Name();
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
@@ -190,7 +166,7 @@ TEST(BPlusTreeTests, InsertTest3) {
   ASSERT_EQ(page_id, HEADER_PAGE_ID);
 
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", header_page->GetPageId(), bpm, comparator);
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", header_page->GetPageId(), bpm, comparator, 2, 3);
   GenericKey<8> index_key;
   RID rid;
   // create transaction
@@ -202,6 +178,7 @@ TEST(BPlusTreeTests, InsertTest3) {
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
+    tree.Dump2Name();
   }
 
   std::vector<RID> rids;

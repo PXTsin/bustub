@@ -71,7 +71,18 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::FindKeyIndex(const KeyType &key, const KeyC
   }
   return i;
 }
-
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveByIndex(int index, const KeyComparator &comparator) -> bool {
+  if (GetSize() == 0) {
+    return false;
+  }
+  array_[index] = MappingType();
+  for (int i = index; i < GetSize() - 1; ++i) {
+    array_[i] = std::move(array_[i + 1]);
+  }
+  IncreaseSize(-1);
+  return true;
+}
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator &comparator) -> bool {
   int index = 0;

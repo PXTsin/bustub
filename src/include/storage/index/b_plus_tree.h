@@ -55,7 +55,7 @@ class Context {
   // You may want to use this when getting value, but not necessary.
   std::deque<ReadPageGuard> read_set_;
 
-  auto IsRootPage(page_id_t page_id) -> bool { return page_id == header_page_->PageId(); }
+  auto IsRootPage(page_id_t page_id) -> bool { return page_id == root_page_id_; }
 };
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
@@ -92,7 +92,8 @@ class BPlusTree {
 
   auto Insert2(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
 
-  void HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_page, InternalPage *parent, Context *ctx);
+  void HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_page, InternalPage *parent, Context *ctx,
+                  page_id_t left_page_id, page_id_t right_page_id, page_id_t parent_page_id);
   // Remove a key and its value from this B+ tree.
   void Remove(const KeyType &key, Transaction *txn);
 

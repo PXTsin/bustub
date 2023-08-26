@@ -81,7 +81,11 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(const KeyType &key, const KeyCompara
   if (comparator(KeyAt(index), key) != 0) {
     return false;
   }
-  std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
+  // std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
+  array_[index] = MappingType();
+  for (int i = index; i < GetSize() - 1; ++i) {
+    array_[i] = std::move(array_[i + 1]);
+  }
   IncreaseSize(-1);
   return true;
 }

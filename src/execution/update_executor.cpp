@@ -39,7 +39,7 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   RID emit_rid;
   int32_t update_count = 0;
   while (child_executor_->Next(&to_update_tuple, &emit_rid)) {
-    auto tmp=table_info_->table_->GetTuple(emit_rid);
+    auto tmp = table_info_->table_->GetTuple(emit_rid);
     auto to_update_tuple_meta = table_info_->table_->GetTupleMeta(emit_rid);
     to_update_tuple_meta.is_deleted_ = true;
     table_info_->table_->UpdateTupleMeta(to_update_tuple_meta, emit_rid);

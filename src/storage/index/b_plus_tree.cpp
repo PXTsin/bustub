@@ -52,7 +52,10 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool {
 
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetPageLeaf(const KeyType &key, Context &ctx) -> page_id_t {
-  page_id_t page_id = GetRootPageId();
+  auto header_page_guard = bpm_->FetchPageWrite(header_page_id_);
+  ctx.header_page_ = std::move(header_page_guard);
+  ctx.root_page_id_ = ctx.header_page_->AsMut<BPlusTreeHeaderPage>()->root_page_id_;
+  page_id_t page_id = ctx.root_page_id_;
   auto guard = bpm_->FetchPageWrite(page_id);
   auto page = guard.As<BPlusTreePage>();
   ctx.write_set_.push_back(std::move(guard));
@@ -285,7 +288,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     ctx.write_set_.pop_back();
     /*根页面分裂，创建新的根节点*/
     if (ctx.write_set_.empty()) {
-      page_id_t page_id1 = GetRootPageId();
+      page_id_t page_id1 = ctx.root_page_id_;
       page_id_t page_id2 = page_id;
       page_id_t root_page_id{};
       auto root_page_guard = bpm_->NewPageGuarded(&root_page_id);
@@ -299,9 +302,10 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       root_page->SetSize(2);
       root_page_guard.Drop();
 
-      auto header_page_guard = bpm_->FetchPageBasic(header_page_id_);
-      auto header_page = header_page_guard.AsMut<BPlusTreeHeaderPage>();
+      auto header_page = ctx.header_page_->AsMut<BPlusTreeHeaderPage>();
+      ctx.root_page_id_ = root_page_id;
       header_page->root_page_id_ = root_page_id;
+      ctx.header_page_ = std::nullopt;
       return true;
     }
     auto parent = ctx.write_set_.back().AsMut<InternalPage>();
@@ -334,7 +338,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
 
       /*根页面分裂，创建新的根节点*/
       if (ctx.write_set_.empty()) {
-        page_id_t page_id1 = GetRootPageId();
+        page_id_t page_id1 = ctx.root_page_id_;
         page_id_t page_id2 = page_id;
         page_id_t root_page_id{};
         auto root_page_guard = bpm_->NewPageGuarded(&root_page_id);
@@ -348,9 +352,9 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         root_page->SetSize(2);
         root_page_guard.Drop();
 
-        auto header_page_guard = bpm_->FetchPageBasic(header_page_id_);
-        auto header_page = header_page_guard.AsMut<BPlusTreeHeaderPage>();
+        auto header_page = ctx.header_page_->AsMut<BPlusTreeHeaderPage>();
         header_page->root_page_id_ = root_page_id;
+        ctx.header_page_ = std::nullopt;
         return true;
       }
       parent = ctx.write_set_.back().AsMut<InternalPage>();
@@ -371,19 +375,62 @@ void BPLUSTREE_TYPE::HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_p
   if (type) {
     auto *left = reinterpret_cast<LeafPage *>(left_page);
     auto *right = reinterpret_cast<LeafPage *>(right_page);
-    auto key = right->KeyAt(0);
-    std::move(right->GetData(), right->GetData() + right->GetSize(), left->GetData() + left->GetSize());
-    left->IncreaseSize(right->GetSize());
-    parent->Remove(key, comparator_);
+    KeyType key;
+    if (right->GetSize() > 0) {
+      key = right->KeyAt(0);
+      std::move(right->GetData(), right->GetData() + right->GetSize(), left->GetData() + left->GetSize());
+      left->IncreaseSize(right->GetSize());
+      /*更新左节点在父节点中的key（因为合并前左节点可能为空）,若是array_[0]则不更新*/
+      auto temp_index = parent->FindKeyIndex(key, comparator_) - 1;
+      if (temp_index > 0) {
+        parent->SetKeyAt(temp_index, left->KeyAt(0));
+      }
+      parent->Remove(key, comparator_);
+    } else {
+      auto key = left->KeyAt(0);
+      auto temp_index = parent->FindKeyIndex(key, comparator_) + 1;
+      /*左节点是array_[0]*/
+      temp_index = (temp_index == 0) ? temp_index + 1 : temp_index;
+      parent->Remove(parent->KeyAt(temp_index), comparator_);
+    }
+    left->SetNextPageId(right->GetNextPageId());
     right->Init();
+    /*根节点只有一个元素*/
+    auto test_parent = reinterpret_cast<Page *>(parent)->GetPageId();
+    auto test_left = reinterpret_cast<Page *>(left)->GetPageId();
+    if (parent->GetSize() == 1 && ctx->IsRootPage(test_parent)) {
+      auto header_page = ctx->header_page_->AsMut<BPlusTreeHeaderPage>();
+      auto root_page_id = test_left;  // reinterpret_cast<Page *>(left)->GetPageId();
+      header_page->root_page_id_ = root_page_id;
+    }
   } else {
     auto *left = reinterpret_cast<InternalPage *>(left_page);
     auto *right = reinterpret_cast<InternalPage *>(right_page);
-    auto key = right->KeyAt(0);
-    std::move(right->GetData(), right->GetData() + right->GetSize(), left->GetData() + left->GetSize());
-    left->IncreaseSize(right->GetSize());
-    parent->Remove(key, comparator_);
+    KeyType key;
+    if (right->GetSize() > 0) {
+      key = right->KeyAt(0);
+      std::move(right->GetData(), right->GetData() + right->GetSize(), left->GetData() + left->GetSize());
+      left->IncreaseSize(right->GetSize());
+      /*更新左节点在父节点中的key（因为合并前左节点可能为空）,若是array_[0]则不更新*/
+      auto temp_index = parent->FindKeyIndex(key, comparator_) - 1;
+      if (temp_index != 0) {
+        parent->SetKeyAt(temp_index, left->KeyAt(0));
+      }
+      parent->Remove(key, comparator_);
+    } else {
+      key = left->KeyAt(0);
+      auto temp_index = parent->FindKeyIndex(key, comparator_) + 1;
+      /*左节点是array_[0]*/
+      temp_index = (temp_index == 0) ? temp_index + 1 : temp_index;
+      parent->Remove(parent->KeyAt(temp_index), comparator_);
+    }
     right->Init();
+    /*根节点只有一个元素*/
+    if (parent->GetSize() == 1 && ctx->IsRootPage(reinterpret_cast<Page *>(parent)->GetPageId())) {
+      auto header_page = ctx->header_page_->AsMut<BPlusTreeHeaderPage>();
+      auto root_page_id = reinterpret_cast<Page *>(left)->GetPageId();
+      header_page->root_page_id_ = root_page_id;
+    }
   }
 
   if (parent->GetSize() >= parent->GetMinSize() || ctx->write_set_.size() == 1) {
@@ -413,7 +460,7 @@ void BPLUSTREE_TYPE::HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_p
     HelpRemove(new_left_page, parent, new_parent, ctx);
   }
   /*有右兄弟节点*/
-  if (index < parent->GetSize() - 1) {
+  else if (index < new_parent->GetSize() - 1) {
     auto right_id = new_parent->ValueAt(index + 1);
     auto right_page_guard = bpm_->FetchPageWrite(right_id);
     auto new_right_page = reinterpret_cast<InternalPage *>(right_page_guard.GetDataMut());
@@ -455,12 +502,12 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
   if (ctx.write_set_.size() == 1) {
     return;
   }
-  /*若删除的是首记录，则更新父节点对应的key*/
+  /*若删除的是首记录，则更新父节点对应的key,若在父节点中是array_[0]则不更新*/
   bool is_head = static_cast<bool>(comparator_(key_tmp, page->KeyAt(0)));
   ctx.write_set_.pop_back();
   auto parent = ctx.write_set_.back().AsMut<InternalPage>();
   int index = parent->FindKeyIndex(key_tmp, comparator_);
-  if (is_head) {
+  if (is_head && index != 0) {
     parent->KeyAt(index) = page->KeyAt(0);
   }
 
@@ -489,7 +536,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
     HelpRemove(left_page, page, parent, &ctx);
   }
   /*有右兄弟节点*/
-  if (index < page->GetSize() - 1) {
+  else if (index < parent->GetSize() - 1) {
     auto right_id = parent->ValueAt(index + 1);
     auto right_page_guard = bpm_->FetchPageWrite(right_id);
     auto right_page = reinterpret_cast<LeafPage *>(right_page_guard.GetDataMut());

@@ -14,6 +14,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 #include "common/exception.h"
 #include "common/logger.h"
@@ -72,6 +73,14 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType { return 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyValueAt(int index) -> const MappingType & { return array_[index]; }
 INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::FindKeyIndex2(const KeyType &key, const KeyComparator &comparator) const -> int {
+  int index = 0;
+  while (comparator(KeyAt(index), key) < 0 && index < GetSize()) {
+    ++index;
+  }
+  return index;
+}
+INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::FindKeyIndex(const KeyType &key, const KeyComparator &comparator) const -> int {
   int l = 0;
   int h = GetSize();
@@ -102,7 +111,11 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Remove(const KeyType &key, const KeyComparator 
 #ifdef P2_DEBUG
   fmt::print("Remove({})\n", key.ToString());
 #endif
-  std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
+  // std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
+  array_[index] = MappingType();
+  for (int i = index; i < GetSize() - 1; ++i) {
+    array_[i] = std::move(array_[i + 1]);
+  }
   IncreaseSize(-1);
   return true;
 }

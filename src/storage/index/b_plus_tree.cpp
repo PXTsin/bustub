@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -141,99 +142,6 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   header_page->root_page_id_ = page_id;
 }
 
-INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
-  Context ctx;
-  ctx.header_page_ = bpm_->FetchPageWrite(header_page_id_);
-  ctx.root_page_id_ = ctx.header_page_->PageId();
-  GetPageLeaf(key, ctx);
-  auto *node = ctx.write_set_.back().AsMut<LeafPage>();
-  auto size = node->GetSize();
-  node->InsertAt(key, value, comparator_);
-  auto new_size = node->GetSize();
-  /*key相同*/
-  if (new_size == size) {
-    return false;
-  }
-  /*页节点没满*/
-  if (new_size < leaf_max_size_) {
-    return true;
-  }
-  /*页满了，需要分页*/
-  page_id_t page_id;
-  auto sibling_leaf_node = Split(node, &page_id);
-  sibling_leaf_node->SetNextPageId(node->GetNextPageId());
-  node->SetNextPageId(page_id);
-
-  auto risen_key = sibling_leaf_node->KeyAt(0);
-  InsertIntoParent(node, risen_key, sibling_leaf_node, ctx, transaction);
-  auto header = reinterpret_cast<BPlusTreeHeaderPage *>(ctx.header_page_->GetDataMut());
-  header->root_page_id_ = ctx.root_page_id_;
-  ctx.header_page_ = std::nullopt;
-  return true;
-}
-INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node,
-                                      Context &ctx, Transaction *transaction) {
-  /*根页面*/
-  if (ctx.write_set_.size() == 1) {
-    auto root_page_guard = bpm_->NewPageGuarded(&ctx.root_page_id_);
-    auto *root_page = reinterpret_cast<InternalPage *>(root_page_guard.GetDataMut());
-    if (root_page == nullptr) {
-      throw Exception(ExceptionType::OUT_OF_MEMORY, "Cannot allocate new page");
-    }
-    auto old_node_id = reinterpret_cast<Page *>(old_node)->GetPageId();
-    auto new_node_id = reinterpret_cast<Page *>(new_node)->GetPageId();
-    root_page->Init(leaf_max_size_);
-    root_page->SetKeyAt(1, key);
-    root_page->SetValueAt(0, old_node_id);
-    root_page->SetValueAt(1, new_node_id);
-    root_page->SetSize(2);
-    return;
-  }
-  // auto old_node_id = reinterpret_cast<Page *>(old_node)->GetPageId();
-  auto new_node_id = reinterpret_cast<Page *>(new_node)->GetPageId();
-  ctx.write_set_.pop_back();
-  auto *parent_page = reinterpret_cast<InternalPage *>(ctx.write_set_.back().GetDataMut());
-  /*父页面不需要分页*/
-  if (parent_page->GetSize() < internal_max_size_) {
-    /*insert*/
-    parent_page->InsertAt(key, new_node_id, comparator_);
-    return;
-  }
-  auto temp = static_cast<InternalPage *>(malloc(BUSTUB_PAGE_SIZE + sizeof(MappingType)));
-  temp->InitData(parent_page->GetData(), 0, internal_max_size_);
-  temp->InsertAt(key, new_node_id, comparator_);
-  /*create new page*/
-  page_id_t page_id;
-  auto parent_sibling_page = reinterpret_cast<InternalPage *>(bpm_->NewPageGuarded(&page_id).GetDataMut());
-  parent_sibling_page->Init(internal_max_size_);
-  /*分页成L1和L2*/
-  parent_page->InitData(temp->GetData(), 0, (internal_max_size_ + 1) / 2);
-  parent_sibling_page->InitData(temp->GetData(), (internal_max_size_ + 1) / 2, internal_max_size_ + 1);
-  auto new_key = parent_sibling_page->KeyAt(0);
-  InsertIntoParent(parent_page, new_key, parent_sibling_page, ctx, transaction);
-  free(temp);
-}
-INDEX_TEMPLATE_ARGUMENTS
-template <typename N>
-auto BPLUSTREE_TYPE::Split(N *node, page_id_t *page_id) -> N * {
-  auto page_tmp = bpm_->NewPage(page_id);
-  if (page_tmp == nullptr) {
-    throw Exception(ExceptionType::OUT_OF_MEMORY, "Cannot allocate new page");
-  }
-  auto *page = reinterpret_cast<N *>(page_tmp);
-  if (node->IsLeafPage()) {
-    page->Init(leaf_max_size_);
-    page->InitData(node->GetData(), (leaf_max_size_ + 1) / 2, leaf_max_size_);
-    node->InitData(node->GetData(), 0, (leaf_max_size_ + 1) / 2);
-  } else {
-    page->Init(internal_max_size_);
-    page->InitData(node->GetData(), (internal_max_size_ + 1) / 2, internal_max_size_ + 1);
-    node->InitData(node->GetData(), 0, (internal_max_size_ + 1) / 2);
-  }
-  return page;
-}
 /*****************************************************************************
  * INSERTION
  *****************************************************************************/
@@ -244,19 +152,12 @@ auto BPLUSTREE_TYPE::Split(N *node, page_id_t *page_id) -> N * {
  * @return: since we only support unique key, if user try to insert duplicate
  * keys return false, otherwise return true.
  */
-INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Insert2(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
-  if (IsEmpty()) {
-    StartNewTree(key, value);
-    return true;
-  }
-  return InsertIntoLeaf(key, value, txn);
-}
+
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
   std::lock_guard<std::mutex> lg(latch_);
 #ifdef P2_DEBUG
-    fmt::print("Insert({})\n", key.ToString());
+  fmt::print("Insert({})\n", key.ToString());
 #endif
   Print(bpm_);
   if (IsEmpty()) {
@@ -494,7 +395,7 @@ void BPLUSTREE_TYPE::HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_p
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
 #ifdef P2_DEBUG
-    fmt::print("Remove({})\n", key.ToString());
+  fmt::print("Remove({})\n", key.ToString());
 #endif
   // Declaration of context instance.
   std::lock_guard<std::mutex> lg(latch_);
@@ -574,6 +475,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
+  std::lock_guard<std::mutex> lg(latch_);
   auto root_page_guard = bpm_->FetchPageBasic(GetRootPageId());
   auto root_page = reinterpret_cast<BPlusTreePage *>(root_page_guard.GetDataMut());
   page_id_t page_id = INVALID_PAGE_ID;
@@ -594,6 +496,7 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
+  std::lock_guard<std::mutex> lg(latch_);
   Context ctx;
   page_id_t page_id = GetPageLeaf(key, ctx);
   auto leaf_page = ctx.write_set_.back().AsMut<LeafPage>();

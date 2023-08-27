@@ -8,7 +8,7 @@
 #include "storage/page/b_plus_tree_leaf_page.h"
 
 namespace bustub {
-#define P2_DEBUG
+// #define P2_DEBUG
 /*
  * NOTE: you can change the destructor/constructor method here
  * set your own input parameters

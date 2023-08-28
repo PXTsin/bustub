@@ -2,7 +2,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <mutex>  //NOLINT
 #include <optional>
 #include <sstream>
 #include <string>
@@ -152,14 +151,13 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
  * @return: since we only support unique key, if user try to insert duplicate
  * keys return false, otherwise return true.
  */
-
+ 
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
   std::lock_guard<std::mutex> lg(latch_);
 #ifdef P2_DEBUG
   fmt::print("Insert({})\n", key.ToString());
 #endif
-  Print(bpm_);
   if (IsEmpty()) {
     StartNewTree(key, value);
     return true;
@@ -475,17 +473,19 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
-  std::lock_guard<std::mutex> lg(latch_);
-  auto root_page_guard = bpm_->FetchPageBasic(GetRootPageId());
-  auto root_page = reinterpret_cast<BPlusTreePage *>(root_page_guard.GetDataMut());
-  page_id_t page_id = INVALID_PAGE_ID;
-  if (root_page->IsLeafPage()) {
-    page_id = GetRootPageId();
-  } else {
-    auto root_page_tmp = reinterpret_cast<InternalPage *>(root_page);
-    Context ctx;
-    page_id = GetPageLeaf(root_page_tmp->KeyAt(0), ctx);
+#ifdef P2_DEBUG
+  fmt::print("Begin()\n");
+#endif
+  auto page_guard = bpm_->FetchPageBasic(GetRootPageId());
+  auto page = page_guard.template As<BPlusTreePage>();
+  page_id_t page_id = page_guard.PageId();
+  while (!page->IsLeafPage()) {
+    auto page2 = reinterpret_cast<const InternalPage *>(page);
+    page_id = page2->ValueAt(0);
+    page_guard = bpm_->FetchPageBasic(page_id);
+    page = page_guard.template As<BPlusTreePage>();
   }
+
   return INDEXITERATOR_TYPE(bpm_, page_id, 0);
 }
 
@@ -496,7 +496,9 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
-  std::lock_guard<std::mutex> lg(latch_);
+#ifdef P2_DEBUG
+  fmt::print("Begin({})\n", key.ToString());
+#endif
   Context ctx;
   page_id_t page_id = GetPageLeaf(key, ctx);
   auto leaf_page = ctx.write_set_.back().AsMut<LeafPage>();

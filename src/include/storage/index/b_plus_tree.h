@@ -80,8 +80,17 @@ class BPlusTree {
 
   void StartNewTree(const KeyType &key, const ValueType &value);
 
+  auto InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool;
+
+  void InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node, Context &ctx,
+                        Transaction *transaction);
+
+  template <typename N>
+  auto Split(N *node, page_id_t *page_id) -> N *;
   // Insert a key-value pair into this B+ tree.
   auto Insert(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
+
+  auto Insert2(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
 
   void HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_page, InternalPage *parent, Context *ctx,
                   page_id_t left_page_id, page_id_t right_page_id, page_id_t parent_page_id);

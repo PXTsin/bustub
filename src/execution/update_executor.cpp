@@ -13,8 +13,10 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "execution/executors/update_executor.h"
+#include "storage/table/tuple.h"
 
 namespace bustub {
 
@@ -46,6 +48,12 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     for (auto index : table_indexes_) {
       index->index_->DeleteEntry(to_update_tuple, emit_rid, exec_ctx_->GetTransaction());
     }
+    /*获取要插入的Tuple*/
+    std::vector<Value> to_insert{};
+    for (const auto &expr : plan_->target_expressions_) {
+      to_insert.push_back(expr->Evaluate(&to_update_tuple, child_executor_->GetOutputSchema()));
+    }
+    to_update_tuple = Tuple(to_insert, &child_executor_->GetOutputSchema());
     to_update_tuple_meta.is_deleted_ = false;
     table_info_->table_->InsertTuple(to_update_tuple_meta, to_update_tuple);
     for (auto index : table_indexes_) {

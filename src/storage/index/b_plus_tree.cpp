@@ -151,12 +151,12 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
  * @return: since we only support unique key, if user try to insert duplicate
  * keys return false, otherwise return true.
  */
- 
+
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool {
   std::lock_guard<std::mutex> lg(latch_);
 #ifdef P2_DEBUG
-  fmt::print("Insert({})\n", key.ToString());
+  // fmt::print("Insert({})\n", key.ToString());
 #endif
   if (IsEmpty()) {
     StartNewTree(key, value);
@@ -393,7 +393,7 @@ void BPLUSTREE_TYPE::HelpRemove(BPlusTreePage *left_page, BPlusTreePage *right_p
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *txn) {
 #ifdef P2_DEBUG
-  fmt::print("Remove({})\n", key.ToString());
+  // fmt::print("Remove({})\n", key.ToString());
 #endif
   // Declaration of context instance.
   std::lock_guard<std::mutex> lg(latch_);

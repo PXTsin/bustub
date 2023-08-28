@@ -11,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 #include "buffer/buffer_pool_manager.h"
 #include "gtest/gtest.h"
@@ -137,15 +139,22 @@ TEST(BPlusTreeTests, SequentialMixTest) {
   auto *transaction = new Transaction(0);
 
   std::vector<int64_t> keys;
-  for (int64_t i = 1; i <= 1501; ++i) {
+  std::vector<int64_t> removed_keys;
+  for (int64_t i = 1; i <= 5501; ++i) {
     keys.emplace_back(2 * i);
     keys.emplace_back(2 * i - 1);
+
+    removed_keys.emplace_back(2 * i - 1);
   }
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
+  }
+  for (auto key : removed_keys) {
+    index_key.SetFromInteger(key);
+    tree.Remove(index_key, transaction);
   }
   // tree.Dump2Name();
 

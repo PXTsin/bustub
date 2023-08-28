@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <mutex>
+#include <mutex>  //NOLINT
 #include <optional>
 #include <sstream>
 #include <string>

@@ -48,7 +48,9 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     auto rid_tmp = table_info_->table_->InsertTuple(to_insert_tuple_meta, to_insert_tuple);
     if (rid_tmp.has_value()) {
       for (auto index : table_indexes_) {
-        index->index_->InsertEntry(to_insert_tuple, rid_tmp.value(), exec_ctx_->GetTransaction());
+        index->index_->InsertEntry(
+            to_insert_tuple.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()),
+            rid_tmp.value(), exec_ctx_->GetTransaction());
       }
       insert_count++;
     }

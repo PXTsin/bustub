@@ -43,7 +43,9 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     to_delete_tuple_meta.is_deleted_ = true;
     table_info_->table_->UpdateTupleMeta(to_delete_tuple_meta, emit_rid);
     for (auto index : table_indexes_) {
-      index->index_->DeleteEntry(to_delete_tuple, emit_rid, exec_ctx_->GetTransaction());
+      index->index_->DeleteEntry(
+          to_delete_tuple.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()),
+          emit_rid, exec_ctx_->GetTransaction());
     }
     delete_count++;
   }

@@ -41,23 +41,29 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   RID emit_rid;
   int32_t update_count = 0;
   while (child_executor_->Next(&to_update_tuple, &emit_rid)) {
-    auto tmp = table_info_->table_->GetTuple(emit_rid);
-    auto to_update_tuple_meta = table_info_->table_->GetTupleMeta(emit_rid);
-    to_update_tuple_meta.is_deleted_ = true;
-    table_info_->table_->UpdateTupleMeta(to_update_tuple_meta, emit_rid);
+    auto to_delete_tuple_meta = table_info_->table_->GetTupleMeta(emit_rid);
+    to_delete_tuple_meta.is_deleted_ = true;
+    table_info_->table_->UpdateTupleMeta(to_delete_tuple_meta, emit_rid);
     for (auto index : table_indexes_) {
-      index->index_->DeleteEntry(to_update_tuple, emit_rid, exec_ctx_->GetTransaction());
+      index->index_->DeleteEntry(
+          to_update_tuple.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()),
+          emit_rid, exec_ctx_->GetTransaction());
     }
     /*获取要插入的Tuple*/
     std::vector<Value> to_insert{};
+    to_insert.reserve(child_executor_->GetOutputSchema().GetColumnCount());
+    to_delete_tuple_meta.is_deleted_ = false;
     for (const auto &expr : plan_->target_expressions_) {
       to_insert.push_back(expr->Evaluate(&to_update_tuple, child_executor_->GetOutputSchema()));
     }
     to_update_tuple = Tuple(to_insert, &child_executor_->GetOutputSchema());
-    to_update_tuple_meta.is_deleted_ = false;
-    table_info_->table_->InsertTuple(to_update_tuple_meta, to_update_tuple);
-    for (auto index : table_indexes_) {
-      index->index_->InsertEntry(to_update_tuple, emit_rid, exec_ctx_->GetTransaction());
+    auto rid_tmp = table_info_->table_->InsertTuple(to_delete_tuple_meta, to_update_tuple);
+    if (rid_tmp.has_value()) {
+      for (auto index : table_indexes_) {
+        index->index_->InsertEntry(
+            to_update_tuple.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()),
+            rid_tmp.value(), exec_ctx_->GetTransaction());
+      }
     }
     ++update_count;
   }

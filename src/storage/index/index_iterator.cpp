@@ -8,7 +8,7 @@
 #include "storage/page/b_plus_tree_leaf_page.h"
 
 namespace bustub {
-#define P2_DEBUG
+// #define P2_DEBUG
 /*
  * NOTE: you can change the destructor/constructor method here
  * set your own input parameters
@@ -79,7 +79,7 @@ auto INDEXITERATOR_TYPE::operator==(const IndexIterator &itr) const -> bool {
 #ifdef P2_DEBUG
   fmt::print("operator==\n");
 #endif
-  return static_cast<bool>(page_id_ == itr.page_id_ && page_index_ == itr.page_index_ && bpm_ == itr.bpm_);
+  return page_id_ == itr.page_id_ && page_index_ == itr.page_index_;
 }
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator!=(const IndexIterator &itr) const -> bool { return !this->operator==(itr); }

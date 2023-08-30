@@ -59,8 +59,14 @@ auto BPLUSTREE_TYPE::GetPageLeaf(const KeyType &key, Context &ctx) -> page_id_t 
   ctx.header_page_ = std::move(header_page_guard);
   ctx.root_page_id_ = ctx.header_page_->AsMut<BPlusTreeHeaderPage>()->root_page_id_;
   page_id_t page_id = ctx.root_page_id_;
+  if (page_id == INVALID_PAGE_ID) {
+    return INVALID_PAGE_ID;
+  }
   auto guard = bpm_->FetchPageWrite(page_id);
   auto page = guard.As<BPlusTreePage>();
+  if (page->GetSize() == 0) {
+    return INVALID_PAGE_ID;
+  }
   ctx.write_set_.push_back(std::move(guard));
   /*找到叶子节点*/
   while (!page->IsLeafPage()) {
@@ -476,8 +482,15 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
 #ifdef P2_DEBUG
   fmt::print("Begin()\n");
 #endif
-  auto page_guard = bpm_->FetchPageBasic(GetRootPageId());
+  auto root_page_id = GetRootPageId();
+  if (root_page_id == INVALID_PAGE_ID) {
+    return INDEXITERATOR_TYPE(bpm_, INVALID_PAGE_ID, 0);
+  }
+  auto page_guard = bpm_->FetchPageBasic(root_page_id);
   auto page = page_guard.template As<BPlusTreePage>();
+  if (page->GetSize() == 0) {
+    return INDEXITERATOR_TYPE(bpm_, INVALID_PAGE_ID, 0);
+  }
   page_id_t page_id = page_guard.PageId();
   while (!page->IsLeafPage()) {
     auto page2 = reinterpret_cast<const InternalPage *>(page);

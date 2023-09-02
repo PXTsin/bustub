@@ -430,13 +430,6 @@ select * from t1 order by v1;
 8 10 445
 
 query +ensure:index_scan
-select * from t1 order by v2;
-----
-7 -10 645 
-6 0 445 
-8 10 445 
-
-query +ensure:index_scan
 select * from t1 order by v1, v3;
 ----
 6 0 445
@@ -463,3 +456,10 @@ select * from t1 order by v3, v2;
 6 0 445 
 8 10 445 
 7 -10 645 
+
+query +ensure:index_scan
+select * from t1 order by v2;
+----
+7 -10 645 
+6 0 445 
+8 10 445 

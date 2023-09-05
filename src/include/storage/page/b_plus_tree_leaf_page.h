@@ -67,6 +67,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto FindKeyIndex(const KeyType &key, const KeyComparator &comparator) const -> int;
   /*不会导致分页的插入*/
   auto InsertAt(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> bool;
+  
+  void SetKeyAt(int index, const KeyType &key);
+  void SetValueAt(int index, const ValueType &value);
 
   auto Remove(const KeyType &key, const KeyComparator &comparator) -> bool;
   /**

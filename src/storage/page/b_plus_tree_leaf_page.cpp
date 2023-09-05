@@ -136,7 +136,10 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::InsertAt(const KeyType &key, const ValueType &v
   IncreaseSize(1);
   return true;
 }
-
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { array_[index].first = key; }
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetValueAt(int index, const ValueType &value) { array_[index].second = value; }
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
 template class BPlusTreeLeafPage<GenericKey<16>, RID, GenericComparator<16>>;

@@ -139,8 +139,9 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   auto *leaf = reinterpret_cast<LeafPage *>(page.GetDataMut());
   leaf->Init(leaf_max_size_);
   // leaf->InsertAt(key, value, comparator_);
-  leaf->SetKeyAt(0,key);
-  leaf->SetValueAt(0,value);
+  leaf->SetKeyAt(0, key);
+  leaf->SetValueAt(0, value);
+  leaf->IncreaseSize(1);
   leaf->SetNextPageId(INVALID_PAGE_ID);
   page.Drop();
   /*set root_page_id_*/

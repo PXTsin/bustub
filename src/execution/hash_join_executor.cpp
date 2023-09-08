@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "execution/executors/hash_join_executor.h"
+#include "binder/table_ref/bound_join_ref.h"
 #include "type/value.h"
 
 namespace bustub {
@@ -35,47 +36,51 @@ void HashJoinExecutor::Init() {
   Tuple tmp_tuple{};
   RID rid;
   while (right_executor_->Next(&tmp_tuple, &rid)) {
+    HashJoinKey join_key;
     for (auto &e : plan_->RightJoinKeyExpressions()) {
-      auto join_key = e->Evaluate(&tmp_tuple, plan_->GetRightPlan()->OutputSchema());
-      hash_join_table_[HashUtil::HashValue(&join_key)].push_back(tmp_tuple);
+      join_key.attributes_.push_back(e->Evaluate(&tmp_tuple, plan_->GetRightPlan()->OutputSchema()));
     }
+    hash_join_table_[join_key.Hash()].emplace_back(tmp_tuple);
   }
 
   while (left_executor_->Next(&tmp_tuple, &rid)) {
+    HashJoinKey left_join_key;
     for (auto &e : plan_->LeftJoinKeyExpressions()) {
-      auto join_key = e->Evaluate(&tmp_tuple, plan_->GetLeftPlan()->OutputSchema());
-      if (hash_join_table_.count(HashUtil::HashValue(&join_key)) > 0) {
-        auto right_tuples = hash_join_table_[HashUtil::HashValue(&join_key)];
-        for (const auto &tuple : right_tuples) {
-          for (auto &e2 : plan_->RightJoinKeyExpressions()) {
-            auto right_join_key = e2->Evaluate(&tuple, plan_->GetRightPlan()->OutputSchema());
-            if (right_join_key.CompareEquals(join_key) == CmpBool::CmpTrue) {
-              std::vector<Value> values{};
-              values.reserve(plan_->GetLeftPlan()->OutputSchema().GetColumnCount() +
-                             plan_->GetRightPlan()->OutputSchema().GetColumnCount());
-              for (uint32_t col_idx = 0; col_idx < plan_->GetLeftPlan()->OutputSchema().GetColumnCount(); col_idx++) {
-                values.push_back(tmp_tuple.GetValue(&plan_->GetLeftPlan()->OutputSchema(), col_idx));
-              }
-              for (uint32_t col_idx = 0; col_idx < plan_->GetRightPlan()->OutputSchema().GetColumnCount(); col_idx++) {
-                values.push_back(tuple.GetValue(&plan_->GetRightPlan()->OutputSchema(), col_idx));
-              }
-              output_tuples_.emplace_back(values, &GetOutputSchema());
-            }
+      left_join_key.attributes_.emplace_back(e->Evaluate(&tmp_tuple, plan_->GetLeftPlan()->OutputSchema()));
+    }
+    if (hash_join_table_.count(left_join_key.Hash()) > 0) {
+      auto right_tuples = hash_join_table_[left_join_key.Hash()];
+      for (const auto &tuple : right_tuples) {
+        HashJoinKey right_join_key;
+        for (auto &right_expr : plan_->RightJoinKeyExpressions()) {
+          right_join_key.attributes_.emplace_back(right_expr->Evaluate(&tuple, plan_->GetRightPlan()->OutputSchema()));
+        }
+        /*hash值可能相同，另外判断*/
+        if (right_join_key == left_join_key) {
+          std::vector<Value> values{};
+          values.reserve(plan_->GetLeftPlan()->OutputSchema().GetColumnCount() +
+                         plan_->GetRightPlan()->OutputSchema().GetColumnCount());
+          for (uint32_t col_idx = 0; col_idx < plan_->GetLeftPlan()->OutputSchema().GetColumnCount(); col_idx++) {
+            values.push_back(tmp_tuple.GetValue(&plan_->GetLeftPlan()->OutputSchema(), col_idx));
           }
+          for (uint32_t col_idx = 0; col_idx < plan_->GetRightPlan()->OutputSchema().GetColumnCount(); col_idx++) {
+            values.push_back(tuple.GetValue(&plan_->GetRightPlan()->OutputSchema(), col_idx));
+          }
+          output_tuples_.emplace_back(values, &GetOutputSchema());
         }
-      } else if (plan_->GetJoinType() == JoinType::LEFT) {
-        std::vector<Value> values{};
-        values.reserve(plan_->GetLeftPlan()->OutputSchema().GetColumnCount() +
-                       plan_->GetRightPlan()->OutputSchema().GetColumnCount());
-        for (uint32_t col_idx = 0; col_idx < plan_->GetLeftPlan()->OutputSchema().GetColumnCount(); col_idx++) {
-          values.push_back(tmp_tuple.GetValue(&plan_->GetLeftPlan()->OutputSchema(), col_idx));
-        }
-        for (uint32_t col_idx = 0; col_idx < plan_->GetRightPlan()->OutputSchema().GetColumnCount(); col_idx++) {
-          values.push_back(
-              ValueFactory::GetNullValueByType(plan_->GetRightPlan()->OutputSchema().GetColumn(col_idx).GetType()));
-        }
-        output_tuples_.emplace_back(values, &GetOutputSchema());
       }
+    } else if (plan_->join_type_ == JoinType::LEFT) {
+      std::vector<Value> values{};
+      values.reserve(plan_->GetLeftPlan()->OutputSchema().GetColumnCount() +
+                     plan_->GetRightPlan()->OutputSchema().GetColumnCount());
+      for (uint32_t col_idx = 0; col_idx < plan_->GetLeftPlan()->OutputSchema().GetColumnCount(); col_idx++) {
+        values.push_back(tmp_tuple.GetValue(&plan_->GetLeftPlan()->OutputSchema(), col_idx));
+      }
+      for (uint32_t col_idx = 0; col_idx < plan_->GetRightPlan()->OutputSchema().GetColumnCount(); col_idx++) {
+        values.push_back(
+            ValueFactory::GetNullValueByType(plan_->GetRightPlan()->OutputSchema().GetColumn(col_idx).GetType()));
+      }
+      output_tuples_.emplace_back(values, &GetOutputSchema());
     }
   }
 

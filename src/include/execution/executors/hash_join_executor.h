@@ -12,18 +12,47 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "common/util/hash_util.h"
-#include "type/value_factory.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
+#include "type/type.h"
+#include "type/value.h"
+#include "type/value_factory.h"
 
 namespace bustub {
 
+struct HashJoinKey {
+  std::vector<Value> attributes_;
+  /**
+   * Compares two aggregate keys for equality.
+   * @param other the other aggregate key to be compared with
+   * @return `true` if both aggregate keys have equivalent group-by expressions, `false` otherwise
+   */
+  auto operator==(const HashJoinKey &other) const -> bool {
+    for (uint32_t i = 0; i < other.attributes_.size(); ++i) {
+      if (attributes_[i].CompareEquals(other.attributes_[i]) != CmpBool::CmpTrue) {
+        return false;
+      }
+    }
+    return true;
+  }
+  auto Hash() -> hash_t {
+    size_t curr_hash = 0;
+    for (const auto &key : attributes_) {
+      if (!key.IsNull()) {
+        curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+      }
+    }
+    return curr_hash;
+  }
+};
 /**
  * HashJoinExecutor executes a nested-loop JOIN on two tables.
  */
@@ -60,7 +89,7 @@ class HashJoinExecutor : public AbstractExecutor {
   std::unique_ptr<AbstractExecutor> left_executor_;
   std::unique_ptr<AbstractExecutor> right_executor_;
 
-  std::unordered_map<hash_t, std::vector<Tuple>> hash_join_table_;
+  std::unordered_map<hash_t, std::vector<Tuple>> hash_join_table_{};
 
   std::vector<Tuple> output_tuples_;
   std::vector<Tuple>::const_iterator output_tuples_iter_;

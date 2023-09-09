@@ -67,7 +67,7 @@ class NestedLoopJoinPlanNode : public AbstractPlanNode {
   /** The join type */
   JoinType join_type_;
 
-//  protected:
+  //  protected:
   auto PlanNodeToString() const -> std::string override {
     return fmt::format("NestedLoopJoin {{ type={}, predicate={} }}", join_type_, predicate_);
   }

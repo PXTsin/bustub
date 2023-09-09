@@ -46,7 +46,7 @@ auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   std::vector<Value> values;
   values.insert(values.end(), aht_iterator_.Key().group_bys_.begin(), aht_iterator_.Key().group_bys_.end());
   values.insert(values.end(), aht_iterator_.Val().aggregates_.begin(), aht_iterator_.Val().aggregates_.end());
-  *tuple=Tuple{values,&GetOutputSchema()};
+  *tuple = Tuple{values, &GetOutputSchema()};
   ++aht_iterator_;
   return true;
 }

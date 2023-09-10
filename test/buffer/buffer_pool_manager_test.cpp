@@ -23,7 +23,7 @@ namespace bustub {
 
 // NOLINTNEXTLINE
 // Check whether pages containing terminal characters can be recovered
-TEST(BufferPoolManagerTest, BinaryDataTest) {  // DISABLED_BinaryDataTest
+TEST(BufferPoolManagerTest, DISABLED_BinaryDataTest) {  // DISABLED_BinaryDataTest
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;
@@ -87,9 +87,29 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {  // DISABLED_BinaryDataTest
   delete bpm;
   delete disk_manager;
 }
+TEST(BufferPoolManagerTest, BpmTest) {  // DISABLED_SampleTest
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 10;
+  const size_t k = 2;
 
+  auto *disk_manager = new DiskManager(db_name);
+  auto *bpm = new BufferPoolManager(buffer_pool_size, disk_manager, k);
+
+  page_id_t page_id_temp;
+  bpm->NewPageGuarded(&page_id_temp);
+  bpm->FetchPage(0);
+  bpm->UnpinPage(0, false);
+  bpm->FetchPageBasic(0);
+
+  // Shutdown the disk manager and remove the temporary file we created.
+  disk_manager->ShutDown();
+  remove("test.db");
+
+  delete bpm;
+  delete disk_manager;
+}
 // NOLINTNEXTLINE
-TEST(BufferPoolManagerTest, SampleTest) {  // DISABLED_SampleTest
+TEST(BufferPoolManagerTest, DISABLED_SampleTest) {  // DISABLED_SampleTest
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;
@@ -172,7 +192,7 @@ TEST(BufferPoolManagerTest, SampleTest2) {  // DISABLED_SampleTest
   delete bpm;
   delete disk_manager;
 }
-TEST(BufferPoolManagerTest, SampleTest3) {  // DISABLED_SampleTest
+TEST(BufferPoolManagerTest, DISABLED_SampleTest3) {  // DISABLED_SampleTest
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;

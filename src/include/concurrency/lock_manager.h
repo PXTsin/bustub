@@ -310,6 +310,9 @@ class LockManager {
   TransactionManager *txn_manager_;
 
  private:
+  auto GrantLock(LockRequestQueue *lock_request_queue, LockRequest *lock_request) -> bool;
+  auto UpdateLocksCompatible(LockMode l1, LockMode l2) -> bool;
+  auto RowTableLocksCompatible(LockMode r_lockmode, LockMode t_lockmode) -> bool;
   /** Spring 2023 */
   /* You are allowed to modify all functions below. */
   auto UpgradeLockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) -> bool;

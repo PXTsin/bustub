@@ -80,13 +80,6 @@ class BPlusTree {
 
   void StartNewTree(const KeyType &key, const ValueType &value);
 
-  auto InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool;
-
-  void InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node, Context &ctx,
-                        Transaction *transaction);
-
-  template <typename N>
-  auto Split(N *node, page_id_t *page_id) -> N *;
   // Insert a key-value pair into this B+ tree.
   auto Insert(const KeyType &key, const ValueType &value, Transaction *txn = nullptr) -> bool;
 
